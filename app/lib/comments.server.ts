@@ -1,6 +1,12 @@
 import { eq } from "drizzle-orm";
-import { comments, courses, lessons, modules } from "~/db/schema";
+import { comments, courses, lessons, modules, users } from "~/db/schema";
 import { MAX_COMMENT_LENGTH, MIN_COMMENT_LENGTH } from "~/lib/comments";
+import { toSnippet } from "~/lib/notifications";
+import {
+  type NotificationPerson,
+  type NotificationsProvider,
+  sendNotification,
+} from "~/lib/notifications.server";
 import type { Db } from "~/lib/refunds.server";
 
 // ─── Comments ───
@@ -9,22 +15,46 @@ import type { Db } from "~/lib/refunds.server";
 // write through here.
 //
 // Every function takes the database first and `now` last, so tests can hand in
-// an in-memory database and a fixed clock. Positional parameters (project
-// convention).
+// an in-memory database and a fixed clock. Functions that send Notifications
+// take the provider second, after the database. Positional parameters
+// (project convention). Notifications go out after the write commits and
+// never fail it.
+
+type Comment = typeof comments.$inferSelect;
 
 export function getComment(db: Db, commentId: number) {
   return db.select().from(comments).where(eq(comments.id, commentId)).get();
 }
 
+function getPerson(db: Db, userId: number): NotificationPerson | undefined {
+  return db
+    .select({
+      id: users.id,
+      name: users.name,
+      email: users.email,
+      avatarUrl: users.avatarUrl,
+    })
+    .from(users)
+    .where(eq(users.id, userId))
+    .get();
+}
+
 function getCourseForLesson(db: Db, lessonId: number) {
   return db
-    .select({ courseId: courses.id, instructorId: courses.instructorId })
+    .select({
+      courseId: courses.id,
+      courseSlug: courses.slug,
+      instructorId: courses.instructorId,
+      lessonTitle: lessons.title,
+    })
     .from(lessons)
     .innerJoin(modules, eq(lessons.moduleId, modules.id))
     .innerJoin(courses, eq(modules.courseId, courses.id))
     .where(eq(lessons.id, lessonId))
     .get();
 }
+
+type LessonCourse = NonNullable<ReturnType<typeof getCourseForLesson>>;
 
 function assertValidBody(body: string) {
   const trimmed = body.trim();
@@ -39,9 +69,13 @@ function assertValidBody(body: string) {
   return trimmed;
 }
 
-/** Posts a Discussion Question (`parentId` null) or a Discussion Reply. */
-export function createComment(
+/**
+ * Posts a Discussion Question (`parentId` null) or a Discussion Reply. A reply
+ * notifies the question's author, unless they wrote it.
+ */
+export async function createComment(
   db: Db,
+  notifications: NotificationsProvider,
   userId: number,
   lessonId: number,
   parentId: number | null,
@@ -55,20 +89,21 @@ export function createComment(
     throw new Error("Lesson not found");
   }
 
+  let question: Comment | undefined;
   if (parentId !== null) {
-    const parent = getComment(db, parentId);
-    if (!parent) {
+    question = getComment(db, parentId);
+    if (!question) {
       throw new Error("Parent comment not found");
     }
-    if (parent.lessonId !== lessonId) {
+    if (question.lessonId !== lessonId) {
       throw new Error("Parent comment belongs to a different lesson");
     }
-    if (parent.parentId !== null) {
+    if (question.parentId !== null) {
       throw new Error("Replies can only be one level deep");
     }
   }
 
-  return db
+  const comment = db
     .insert(comments)
     .values({
       userId,
@@ -79,6 +114,39 @@ export function createComment(
     })
     .returning()
     .get();
+
+  if (question && question.userId !== userId) {
+    await notifyDiscussionReply(db, notifications, comment, question, course);
+  }
+
+  return comment;
+}
+
+async function notifyDiscussionReply(
+  db: Db,
+  notifications: NotificationsProvider,
+  reply: Comment,
+  question: Comment,
+  course: LessonCourse
+) {
+  const asker = getPerson(db, question.userId);
+  if (!asker) return;
+
+  await sendNotification(notifications, {
+    kind: "discussion-reply",
+    recipients: [asker],
+    actor: getPerson(db, reply.userId) ?? null,
+    data: {
+      commentId: reply.id,
+      questionId: question.id,
+      lessonId: reply.lessonId,
+      lessonTitle: course.lessonTitle,
+      courseSlug: course.courseSlug,
+      snippet: toSnippet(reply.body),
+    },
+    idempotencyKey: `discussion-reply:${reply.id}`,
+    cause: { commentId: reply.id },
+  });
 }
 
 /** Changes the body of the author's own comment. */
