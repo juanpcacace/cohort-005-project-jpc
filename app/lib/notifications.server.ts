@@ -61,6 +61,12 @@ export interface NotificationsProvider {
   readCounts(userId: number): Promise<FeedCounts>;
   /** Marks one of the user's own Notifications read. Anyone else's is left alone. */
   markRead(userId: number, notificationId: string): Promise<void>;
+  /** Marks every one of the user's Notifications seen, loaded or not. Seen isn't read. */
+  markAllSeen(userId: number): Promise<void>;
+  /** Marks every one of the user's Notifications read, loaded or not. */
+  markAllRead(userId: number): Promise<void>;
+  /** Removes every Notification the cause led to from its recipients' Feeds. */
+  archive(cause: NotificationCause): Promise<void>;
   /** Creates or updates the user with their name, email and avatar. */
   identifyUser(person: NotificationPerson): Promise<void>;
   /** The user's stored Notification Preferences, or null when they have none yet. */
@@ -89,6 +95,9 @@ export function noopProvider(
       return { unseen: 0, unread: 0 };
     },
     async markRead() {},
+    async markAllSeen() {},
+    async markAllRead() {},
+    async archive() {},
     async identifyUser() {},
     async readPreferences() {
       return null;
@@ -114,6 +123,8 @@ export function fakeProvider(now: () => Date = () => new Date()): FakeProvider {
   const isMuted = (userId: number, kind: NotificationKind) =>
     preferences.get(userId)?.[NOTIFICATION_TOPICS[kind]]?.feed === false;
   const feeds = new Map<number, FeedNotification[]>();
+  /** Feed entry id → the comment that caused it, for `archive`. */
+  const causes = new Map<string, number>();
   let nextId = 1;
 
   return {
@@ -135,6 +146,9 @@ export function fakeProvider(now: () => Date = () => new Date()): FakeProvider {
           seen: false,
           read: false,
         } as FeedNotification;
+        if (notification.cause) {
+          causes.set(entry.id, notification.cause.commentId);
+        }
         feeds.set(recipient.id, [entry, ...(feeds.get(recipient.id) ?? [])]);
       }
     },
@@ -173,6 +187,23 @@ export function fakeProvider(now: () => Date = () => new Date()): FakeProvider {
         mergePreferences(preferences.get(userId) ?? null, changes)
       );
     },
+    async markAllSeen(userId) {
+      for (const entry of feeds.get(userId) ?? []) entry.seen = true;
+    },
+    async markAllRead(userId) {
+      for (const entry of feeds.get(userId) ?? []) {
+        entry.read = true;
+        entry.seen = true;
+      }
+    },
+    async archive(cause) {
+      for (const [userId, feed] of feeds) {
+        feeds.set(
+          userId,
+          feed.filter((n) => causes.get(n.id) !== cause.commentId)
+        );
+      }
+    },
   };
 }
 
@@ -209,6 +240,21 @@ export async function sendNotification(
   } catch (error) {
     console.error(
       `[notifications] Failed to send ${notification.kind} (${notification.idempotencyKey})`,
+      error
+    );
+  }
+}
+
+/** Archives what the cause led to and logs any failure. Never throws. */
+export async function archiveNotifications(
+  provider: NotificationsProvider,
+  cause: NotificationCause
+): Promise<void> {
+  try {
+    await provider.archive(cause);
+  } catch (error) {
+    console.error(
+      `[notifications] Failed to archive Notifications for comment ${cause.commentId}`,
       error
     );
   }

@@ -251,5 +251,36 @@ export function knockProvider(
         channels: set?.channels ?? null,
       });
     },
+
+    // Bulk-by-channel covers messages the browser hasn't loaded. Always scope
+    // to the one recipient: without `recipient_ids` it would hit everyone's.
+    // Knock runs it asynchronously, so a counts read right after may lag.
+    async markAllSeen(userId) {
+      await knock().channels.bulk.updateMessageStatus(feedChannelId, "seen", {
+        recipient_ids: [String(userId)],
+        engagement_status: "unseen",
+      });
+    },
+
+    async markAllRead(userId) {
+      await knock().channels.bulk.updateMessageStatus(feedChannelId, "read", {
+        recipient_ids: [String(userId)],
+        engagement_status: "unread",
+      });
+    },
+
+    async archive(cause) {
+      // Find the cause's messages, for every recipient, by the scalar
+      // `causeCommentId` that `send` put at the top level of the trigger data.
+      const messageIds: string[] = [];
+      for await (const message of knock().messages.list({
+        channel_id: feedChannelId,
+        trigger_data: JSON.stringify({ causeCommentId: cause.commentId }),
+      })) {
+        messageIds.push(message.id);
+      }
+      if (messageIds.length === 0) return; // An empty batch is a 422.
+      await knock().messages.batch.archive({ message_ids: messageIds });
+    },
   };
 }
