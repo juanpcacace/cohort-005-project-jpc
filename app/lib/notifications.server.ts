@@ -60,6 +60,8 @@ export interface NotificationsProvider {
   markAllSeen(userId: number): Promise<void>;
   /** Marks every one of the user's Notifications read, loaded or not. */
   markAllRead(userId: number): Promise<void>;
+  /** Removes every Notification the cause led to from its recipients' Feeds. */
+  archive(cause: NotificationCause): Promise<void>;
 }
 
 // ─── No-op ───
@@ -84,6 +86,7 @@ export function noopProvider(
     async markRead() {},
     async markAllSeen() {},
     async markAllRead() {},
+    async archive() {},
   };
 }
 
@@ -97,6 +100,8 @@ export type FakeProvider = NotificationsProvider & {
 export function fakeProvider(now: () => Date = () => new Date()): FakeProvider {
   const sent: NewNotification[] = [];
   const feeds = new Map<number, FeedNotification[]>();
+  /** Feed entry id → the comment that caused it, for `archive`. */
+  const causes = new Map<string, number>();
   let nextId = 1;
 
   return {
@@ -116,6 +121,9 @@ export function fakeProvider(now: () => Date = () => new Date()): FakeProvider {
           seen: false,
           read: false,
         } as FeedNotification;
+        if (notification.cause) {
+          causes.set(entry.id, notification.cause.commentId);
+        }
         feeds.set(recipient.id, [entry, ...(feeds.get(recipient.id) ?? [])]);
       }
     },
@@ -149,6 +157,14 @@ export function fakeProvider(now: () => Date = () => new Date()): FakeProvider {
       for (const entry of feeds.get(userId) ?? []) {
         entry.read = true;
         entry.seen = true;
+      }
+    },
+    async archive(cause) {
+      for (const [userId, feed] of feeds) {
+        feeds.set(
+          userId,
+          feed.filter((n) => causes.get(n.id) !== cause.commentId)
+        );
       }
     },
   };
@@ -187,6 +203,21 @@ export async function sendNotification(
   } catch (error) {
     console.error(
       `[notifications] Failed to send ${notification.kind} (${notification.idempotencyKey})`,
+      error
+    );
+  }
+}
+
+/** Archives what the cause led to and logs any failure. Never throws. */
+export async function archiveNotifications(
+  provider: NotificationsProvider,
+  cause: NotificationCause
+): Promise<void> {
+  try {
+    await provider.archive(cause);
+  } catch (error) {
+    console.error(
+      `[notifications] Failed to archive Notifications for comment ${cause.commentId}`,
       error
     );
   }

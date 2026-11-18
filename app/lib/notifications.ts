@@ -29,6 +29,13 @@ export type NotificationTopic =
  * `toFeedRow`.
  */
 export type NotificationData = {
+  "discussion-question": {
+    commentId: number;
+    lessonId: number;
+    lessonTitle: string;
+    courseSlug: string;
+    snippet: string;
+  };
   "discussion-reply": {
     commentId: number;
     questionId: number;
@@ -42,6 +49,7 @@ export type NotificationData = {
 export type NotificationKind = keyof NotificationData;
 
 export const NOTIFICATION_TOPICS: Record<NotificationKind, NotificationTopic> = {
+  "discussion-question": "discussion-questions",
   "discussion-reply": "discussion-replies",
 };
 
@@ -98,6 +106,15 @@ export function toFeedRow(notification: FeedNotification): FeedRow {
   };
 
   switch (notification.kind) {
+    case "discussion-question": {
+      const { data } = notification;
+      return {
+        ...base,
+        title: `${actorName} asked a question on ${data.lessonTitle}`,
+        snippet: data.snippet,
+        link: `/courses/${data.courseSlug}/lessons/${data.lessonId}#${commentAnchor(data.commentId)}`,
+      };
+    }
     case "discussion-reply": {
       const { data } = notification;
       return {

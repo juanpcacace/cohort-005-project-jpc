@@ -140,5 +140,19 @@ export function knockProvider(
         engagement_status: "unread",
       });
     },
+
+    async archive(cause) {
+      // Find the cause's messages, for every recipient, by the scalar
+      // `causeCommentId` that `send` put at the top level of the trigger data.
+      const messageIds: string[] = [];
+      for await (const message of knock().messages.list({
+        channel_id: feedChannelId,
+        trigger_data: JSON.stringify({ causeCommentId: cause.commentId }),
+      })) {
+        messageIds.push(message.id);
+      }
+      if (messageIds.length === 0) return; // An empty batch is a 422.
+      await knock().messages.batch.archive({ message_ids: messageIds });
+    },
   };
 }
