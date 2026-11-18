@@ -260,11 +260,22 @@ workflow_stage() {
 DISCUSSION_REPLY_DATA='{"commentId":0,"questionId":0,"lessonId":0,"lessonTitle":"Wizard lesson","courseSlug":"wizard","snippet":"Wizard check","causeCommentId":0}'
 DISCUSSION_QUESTION_DATA='{"commentId":0,"lessonId":0,"lessonTitle":"Wizard lesson","courseSlug":"wizard","snippet":"Wizard check","causeCommentId":0}'
 
+REFUND_CONFIRMATION_DATA='{"refundRequestId":0,"courseTitle":"Wizard course","amount":7900}'
+OPEN_REFUND_REQUEST_DATA='{"refundRequestId":0,"courseTitle":"Wizard course","amount":7900,"reason":"Wizard check"}'
+REFUND_DECISION_DATA='{"refundRequestId":0,"purchaseId":0,"courseTitle":"Wizard course","amount":7900,"note":"Wizard check","refundView":"/settings"}'
+
+# refund_workflow_stage KEY CATEGORY DATA_JSON: Refund Request kinds carry no
+# snippet, so their feed step body uses the course title instead.
+refund_workflow_stage() {
+  note "This kind has no snippet: where a step says {{ data.snippet }}, use {{ data.courseTitle }}."
+  workflow_stage "$1" "$2" "$3"
+}
+
 run_wizard() {
 
 cd "$(dirname "$0")/.."
 
-TOTAL_STAGES=4
+TOTAL_STAGES=8
 
 banner "Knock setup for the Notification Feed"
 
@@ -287,6 +298,22 @@ pause "Press Enter to continue"
 
 stage "Workflow: discussion-question"
 workflow_stage "discussion-question" "discussion-questions" "$DISCUSSION_QUESTION_DATA"
+pause "Press Enter to continue"
+
+stage "Workflow: refund-request-confirmation"
+refund_workflow_stage "refund-request-confirmation" "refund-request-updates" "$REFUND_CONFIRMATION_DATA"
+pause "Press Enter to continue"
+
+stage "Workflow: refund-request-approved"
+refund_workflow_stage "refund-request-approved" "refund-request-updates" "$REFUND_DECISION_DATA"
+pause "Press Enter to continue"
+
+stage "Workflow: refund-request-declined"
+refund_workflow_stage "refund-request-declined" "refund-request-updates" "$REFUND_DECISION_DATA"
+pause "Press Enter to continue"
+
+stage "Workflow: open-refund-request"
+refund_workflow_stage "open-refund-request" "open-refund-requests" "$OPEN_REFUND_REQUEST_DATA"
 pause "Press Enter to continue"
 
 stage "Verify end to end"
