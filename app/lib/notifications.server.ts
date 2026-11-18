@@ -56,6 +56,10 @@ export interface NotificationsProvider {
   readCounts(userId: number): Promise<FeedCounts>;
   /** Marks one of the user's own Notifications read. Anyone else's is left alone. */
   markRead(userId: number, notificationId: string): Promise<void>;
+  /** Marks every one of the user's Notifications seen, loaded or not. Seen isn't read. */
+  markAllSeen(userId: number): Promise<void>;
+  /** Marks every one of the user's Notifications read, loaded or not. */
+  markAllRead(userId: number): Promise<void>;
 }
 
 // ─── No-op ───
@@ -78,6 +82,8 @@ export function noopProvider(
       return { unseen: 0, unread: 0 };
     },
     async markRead() {},
+    async markAllSeen() {},
+    async markAllRead() {},
   };
 }
 
@@ -132,6 +138,15 @@ export function fakeProvider(now: () => Date = () => new Date()): FakeProvider {
     async markRead(userId, notificationId) {
       const entry = feeds.get(userId)?.find((n) => n.id === notificationId);
       if (entry) {
+        entry.read = true;
+        entry.seen = true;
+      }
+    },
+    async markAllSeen(userId) {
+      for (const entry of feeds.get(userId) ?? []) entry.seen = true;
+    },
+    async markAllRead(userId) {
+      for (const entry of feeds.get(userId) ?? []) {
         entry.read = true;
         entry.seen = true;
       }

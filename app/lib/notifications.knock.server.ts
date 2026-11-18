@@ -123,5 +123,22 @@ export function knockProvider(
       if (recipientId !== String(userId)) return;
       await knock().messages.markAsRead(notificationId);
     },
+
+    // Bulk-by-channel covers messages the browser hasn't loaded. Always scope
+    // to the one recipient: without `recipient_ids` it would hit everyone's.
+    // Knock runs it asynchronously, so a counts read right after may lag.
+    async markAllSeen(userId) {
+      await knock().channels.bulk.updateMessageStatus(feedChannelId, "seen", {
+        recipient_ids: [String(userId)],
+        engagement_status: "unseen",
+      });
+    },
+
+    async markAllRead(userId) {
+      await knock().channels.bulk.updateMessageStatus(feedChannelId, "read", {
+        recipient_ids: [String(userId)],
+        engagement_status: "unread",
+      });
+    },
   };
 }

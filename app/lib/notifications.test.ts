@@ -33,6 +33,28 @@ describe("toFeedRow", () => {
       read: false,
     });
   });
+
+  it("leaves the sender empty when Cadence itself sent it, and names Cadence", () => {
+    const row = toFeedRow({
+      id: "m2",
+      kind: "discussion-reply",
+      actor: null,
+      data: {
+        commentId: 42,
+        questionId: 7,
+        lessonId: 3,
+        lessonTitle: "Closures",
+        courseSlug: "js-basics",
+        snippet: "Because scope.",
+      },
+      sentAt: "2026-10-06T12:00:00.000Z",
+      seen: false,
+      read: false,
+    });
+
+    expect(row.actor).toBeNull();
+    expect(row.title).toBe("Cadence replied to your question");
+  });
 });
 
 describe("toFeedRow for Refund Requests", () => {
