@@ -10,7 +10,7 @@ import {
   Settings,
   UsersRound,
 } from "lucide-react";
-import { NOTIFICATION_SETTINGS_ANCHOR } from "~/components/notification-settings-card";
+import { NOTIFICATION_PREFERENCES_ANCHOR } from "~/components/notification-preferences-card";
 import { UserAvatar } from "~/components/user-avatar";
 import {
   FEED_POLL_INTERVAL_MS,
@@ -265,10 +265,10 @@ function NotificationPopover({
             type="button"
             onClick={() => {
               onClose();
-              navigate(`/settings#${NOTIFICATION_SETTINGS_ANCHOR}`);
+              navigate(`/settings#${NOTIFICATION_PREFERENCES_ANCHOR}`);
             }}
-            aria-label="Notification settings"
-            title="Notification settings"
+            aria-label="Notification Preferences"
+            title="Notification Preferences"
             className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
           >
             <Settings className="size-4" />

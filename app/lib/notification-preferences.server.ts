@@ -5,7 +5,7 @@ import { z } from "zod";
 import type { NotificationTopic } from "~/lib/notifications";
 import type { NotificationsProvider } from "~/lib/notifications.server";
 import { setNotificationPreference } from "~/lib/notification-users.server";
-import type { Db } from "~/lib/refunds.server";
+import type { Db } from "~/db";
 
 // ─── The Notifications card on /settings ───
 // A switch shows by what the person is or has, not by their role alone: a
@@ -62,7 +62,7 @@ export type SaveNotificationPreferenceResult =
  */
 export async function saveNotificationPreference(
   db: Db,
-  provider: NotificationsProvider,
+  notifications: NotificationsProvider,
   userId: number,
   input: unknown
 ): Promise<SaveNotificationPreferenceResult> {
@@ -74,6 +74,6 @@ export async function saveNotificationPreference(
     return { ok: false, status: 400, error: "Invalid Notification Preference." };
   }
   const { topic, enabled } = parsed.data;
-  await setNotificationPreference(provider, userId, topic, enabled);
+  await setNotificationPreference(notifications, userId, topic, enabled);
   return { ok: true };
 }

@@ -10,7 +10,7 @@ import type { NotificationTopic } from "~/lib/notifications";
 // once; a failed save shows a toast and puts the switch back.
 
 /** Where the bell's gear links to. */
-export const NOTIFICATION_SETTINGS_ANCHOR = "notifications";
+export const NOTIFICATION_PREFERENCES_ANCHOR = "notifications";
 
 const TOPIC_COPY: Record<NotificationTopic, { label: string; description: string }> = {
   "refund-request-updates": {
@@ -39,7 +39,7 @@ const TOPIC_COPY: Record<NotificationTopic, { label: string; description: string
   },
 };
 
-export function NotificationSettingsCard({
+export function NotificationPreferencesCard({
   topics,
   preferences,
 }: {
@@ -69,7 +69,7 @@ export function NotificationSettingsCard({
   }
 
   return (
-    <Card id={NOTIFICATION_SETTINGS_ANCHOR} className="mt-8 max-w-md scroll-mt-6">
+    <Card id={NOTIFICATION_PREFERENCES_ANCHOR} className="mt-8 max-w-md scroll-mt-6">
       <CardHeader>
         <h2 className="text-lg font-semibold">Notifications</h2>
         <p className="text-sm text-muted-foreground">

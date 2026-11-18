@@ -2,10 +2,14 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
 import { createTestDb, seedBaseData } from "~/test/setup";
 import * as schema from "~/db/schema";
 import { UserRole } from "~/db/schema";
-import { enrollStudent, toNotificationPerson } from "./enrollments.server";
+import { enrollStudent } from "./enrollments.server";
 import { approveRefundRequest, raiseRefundRequest } from "./refunds.server";
 import { fakeProvider, noopProvider, readFeedRows } from "./notifications.server";
-import { setNotificationPreference, syncNotificationUser } from "./notification-users.server";
+import {
+  setNotificationPreference,
+  syncNotificationUser,
+  toNotificationPerson,
+} from "./notification-users.server";
 
 type TestDb = ReturnType<typeof createTestDb>;
 

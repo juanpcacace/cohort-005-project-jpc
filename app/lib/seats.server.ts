@@ -1,15 +1,13 @@
 import { and, eq, isNull } from "drizzle-orm";
-import { coupons, courses, enrollments, purchases, users } from "~/db/schema";
-import {
-  enrollStudent,
-  findEnrollment,
-  toNotificationPerson,
-} from "~/lib/enrollments.server";
+import { coupons, courses, enrollments, purchases } from "~/db/schema";
+import { enrollStudent, findEnrollment } from "~/lib/enrollments.server";
+import { findNotificationPerson } from "~/lib/notification-users.server";
 import {
   sendNotification,
   type NotificationsProvider,
 } from "~/lib/notifications.server";
-import { getSeatAvailability, type Db } from "~/lib/refunds.server";
+import type { Db } from "~/db";
+import { getSeatAvailability } from "~/lib/refunds.server";
 
 // ─── Seat claim ───
 // A Student claiming one Seat on a Team Licence by its code, which turns it
@@ -111,10 +109,12 @@ async function notifySeatClaimed(
   teamAdminId: number,
   claimerId: number
 ) {
+  // Nobody is notified of their own action: a Team Admin claiming a Seat on
+  // their own Team Licence hears nothing.
   if (teamAdminId === claimerId) return;
 
-  const teamAdmin = db.select().from(users).where(eq(users.id, teamAdminId)).get();
-  const claimer = db.select().from(users).where(eq(users.id, claimerId)).get();
+  const teamAdmin = findNotificationPerson(db, teamAdminId);
+  const claimer = findNotificationPerson(db, claimerId);
   const course = db.select().from(courses).where(eq(courses.id, seat.courseId)).get();
   if (!teamAdmin || !claimer || !course) return;
 
@@ -132,8 +132,8 @@ async function notifySeatClaimed(
 
   await sendNotification(notifications, {
     kind: "seat-claimed",
-    recipients: [toNotificationPerson(teamAdmin)],
-    actor: toNotificationPerson(claimer),
+    recipients: [teamAdmin],
+    actor: claimer,
     data: {
       seatId: seat.id,
       purchaseId: seat.purchaseId,

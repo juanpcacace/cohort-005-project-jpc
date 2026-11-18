@@ -1,12 +1,12 @@
 import { data } from "react-router";
 import { db } from "~/db";
 import { requireUserId } from "~/lib/access.server";
-import { saveNotificationPreference } from "~/lib/notification-settings.server";
+import { saveNotificationPreference } from "~/lib/notification-preferences.server";
 import { defaultNotificationsProvider } from "~/lib/notifications.server";
 import type { Route } from "./+types/api.notifications.preferences";
 
 // Turns one of the signed-in user's Notification Topics on or off. A provider
-// failure throws (500), so the settings card reverts the switch.
+// failure throws (500), so the Notification Preferences card reverts the switch.
 export async function action({ request }: Route.ActionArgs) {
   const userId = await requireUserId(request);
   const result = await saveNotificationPreference(

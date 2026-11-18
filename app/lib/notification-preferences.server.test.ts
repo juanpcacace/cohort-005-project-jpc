@@ -5,7 +5,7 @@ import { UserRole } from "~/db/schema";
 import {
   saveNotificationPreference,
   visibleNotificationTopics,
-} from "./notification-settings.server";
+} from "./notification-preferences.server";
 import { fakeProvider, type FakeProvider } from "./notifications.server";
 import { readNotificationPreferences } from "./notification-users.server";
 

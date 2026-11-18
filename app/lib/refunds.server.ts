@@ -1,7 +1,6 @@
 import { and, asc, desc, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
-import type { BetterSQLite3Database } from "drizzle-orm/better-sqlite3";
 import { alias } from "drizzle-orm/sqlite-core";
-import * as schema from "~/db/schema";
+import type { Db } from "~/db";
 import {
   coupons,
   courses,
@@ -25,6 +24,10 @@ import {
 } from "~/lib/notifications.server";
 import { toSnippet } from "~/lib/notifications";
 import {
+  findNotificationPerson,
+  toNotificationPerson,
+} from "~/lib/notification-users.server";
+import {
   REFUND_COMPLETION_LIMIT,
   REFUND_WATCH_LIMIT_SECONDS,
   REFUND_WINDOW_DAYS,
@@ -42,7 +45,6 @@ import {
 // write commits; a failed send is logged and never fails the action. The
 // Postmark email is still returned for the route to send, as before.
 
-export type Db = BetterSQLite3Database<typeof schema>;
 type Tx = Parameters<Parameters<Db["transaction"]>[0]>[0];
 type Queryable = Db | Tx;
 
@@ -402,7 +404,7 @@ export async function raiseRefundRequest(
     db,
     notifications,
     refundRequest.id,
-    toPerson(buyer),
+    toNotificationPerson(buyer),
     course.title,
     purchase.amountPaid,
     reason
@@ -821,15 +823,6 @@ function buildDecisionEmail(
 /** A decision that went through, with the Purchase it was on. */
 type Decided = { ok: true; email: Email; purchase: Purchase };
 
-function toPerson(user: typeof users.$inferSelect): NotificationPerson {
-  return {
-    id: user.id,
-    name: user.name,
-    email: user.email,
-    avatarUrl: user.avatarUrl,
-  };
-}
-
 /** Where a buyer sees their Refund Requests. */
 function refundViewFor(kind: PurchaseKind): string {
   return kind === "team_licence" ? "/team" : "/settings";
@@ -857,13 +850,15 @@ async function notifyRefundRequestRaised(
     cause: null,
   });
 
+  // Nobody is notified of their own action: a buyer who is also a Platform
+  // Admin gets the confirmation above but not the Open Refund Request.
   const platformAdmins = db
     .select()
     .from(users)
     .where(eq(users.role, UserRole.Admin))
     .all()
     .filter((admin) => admin.id !== buyer.id)
-    .map(toPerson);
+    .map(toNotificationPerson);
   if (platformAdmins.length === 0) return;
 
   await sendNotification(notifications, {
@@ -888,13 +883,13 @@ async function notifyDecision(
   if (!result.ok) return result;
 
   const { purchase, email } = result;
-  const buyer = db.select().from(users).where(eq(users.id, purchase.userId)).get();
+  const buyer = findNotificationPerson(db, purchase.userId);
   const course = db.select().from(courses).where(eq(courses.id, purchase.courseId)).get();
 
   if (buyer && course) {
     await sendNotification(notifications, {
       kind,
-      recipients: [toPerson(buyer)],
+      recipients: [buyer],
       actor: null,
       data: {
         refundRequestId,
