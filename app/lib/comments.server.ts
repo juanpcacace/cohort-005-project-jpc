@@ -3,6 +3,7 @@ import { comments, courses, lessons, modules, users } from "~/db/schema";
 import { MAX_COMMENT_LENGTH, MIN_COMMENT_LENGTH } from "~/lib/comments";
 import { toSnippet } from "~/lib/notifications";
 import {
+  archiveNotifications,
   type NotificationPerson,
   type NotificationsProvider,
   sendNotification,
@@ -70,8 +71,9 @@ function assertValidBody(body: string) {
 }
 
 /**
- * Posts a Discussion Question (`parentId` null) or a Discussion Reply. A reply
- * notifies the question's author, unless they wrote it.
+ * Posts a Discussion Question (`parentId` null) or a Discussion Reply. A
+ * question notifies the course's Instructor and a reply the question's author,
+ * unless they wrote it themselves.
  */
 export async function createComment(
   db: Db,
@@ -118,8 +120,36 @@ export async function createComment(
   if (question && question.userId !== userId) {
     await notifyDiscussionReply(db, notifications, comment, question, course);
   }
+  if (!question && course.instructorId !== userId) {
+    await notifyDiscussionQuestion(db, notifications, comment, course);
+  }
 
   return comment;
+}
+
+async function notifyDiscussionQuestion(
+  db: Db,
+  notifications: NotificationsProvider,
+  question: Comment,
+  course: LessonCourse
+) {
+  const instructor = getPerson(db, course.instructorId);
+  if (!instructor) return;
+
+  await sendNotification(notifications, {
+    kind: "discussion-question",
+    recipients: [instructor],
+    actor: getPerson(db, question.userId) ?? null,
+    data: {
+      commentId: question.id,
+      lessonId: question.lessonId,
+      lessonTitle: course.lessonTitle,
+      courseSlug: course.courseSlug,
+      snippet: toSnippet(question.body),
+    },
+    idempotencyKey: `discussion-question:${question.id}`,
+    cause: { commentId: question.id },
+  });
 }
 
 async function notifyDiscussionReply(
@@ -181,10 +211,12 @@ export function updateComment(
 /**
  * Soft-deletes a comment by setting `deletedAt`. The author or staff (the
  * course's Instructor or a Platform Admin) may delete. Deleting twice keeps
- * the first time.
+ * the first time. The Notification the comment caused leaves its recipient's
+ * Feed; deleting a question leaves its replies' Notifications alone.
  */
-export function deleteComment(
+export async function deleteComment(
   db: Db,
+  notifications: NotificationsProvider,
   commentId: number,
   userId: number,
   isStaff: boolean,
@@ -201,10 +233,14 @@ export function deleteComment(
     return existing;
   }
 
-  return db
+  const deleted = db
     .update(comments)
     .set({ deletedAt: now.toISOString() })
     .where(eq(comments.id, commentId))
     .returning()
     .get()!;
+
+  await archiveNotifications(notifications, { commentId });
+
+  return deleted;
 }

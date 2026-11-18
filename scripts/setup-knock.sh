@@ -258,12 +258,13 @@ workflow_stage() {
 }
 
 DISCUSSION_REPLY_DATA='{"commentId":0,"questionId":0,"lessonId":0,"lessonTitle":"Wizard lesson","courseSlug":"wizard","snippet":"Wizard check","causeCommentId":0}'
+DISCUSSION_QUESTION_DATA='{"commentId":0,"lessonId":0,"lessonTitle":"Wizard lesson","courseSlug":"wizard","snippet":"Wizard check","causeCommentId":0}'
 
 run_wizard() {
 
 cd "$(dirname "$0")/.."
 
-TOTAL_STAGES=3
+TOTAL_STAGES=4
 
 banner "Knock setup for the Notification Feed"
 
@@ -282,6 +283,10 @@ pause "Press Enter to continue"
 
 stage "Workflow: discussion-reply"
 workflow_stage "discussion-reply" "discussion-replies" "$DISCUSSION_REPLY_DATA"
+pause "Press Enter to continue"
+
+stage "Workflow: discussion-question"
+workflow_stage "discussion-question" "discussion-questions" "$DISCUSSION_QUESTION_DATA"
 pause "Press Enter to continue"
 
 stage "Verify end to end"
