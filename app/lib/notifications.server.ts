@@ -209,8 +209,19 @@ export function fakeProvider(now: () => Date = () => new Date()): FakeProvider {
 
 // ─── Choosing one ───
 
-/** The Knock adapter when KNOCK_SECRET_API_KEY is set, otherwise the no-op. */
+let defaultProvider: NotificationsProvider | undefined;
+
+/**
+ * The Knock adapter when KNOCK_SECRET_API_KEY is set, otherwise the no-op.
+ * Chosen on the first call, not at import, and reused after that, so a
+ * request doesn't reload .env or build a new Knock client.
+ */
 export function defaultNotificationsProvider(): NotificationsProvider {
+  defaultProvider ??= chooseNotificationsProvider();
+  return defaultProvider;
+}
+
+function chooseNotificationsProvider(): NotificationsProvider {
   // Vite dev and tsx leave non-VITE_ .env values off process.env.
   if (!process.env.KNOCK_SECRET_API_KEY && existsSync(".env")) {
     process.loadEnvFile(".env");
@@ -232,11 +243,11 @@ export function defaultNotificationsProvider(): NotificationsProvider {
 
 /** Sends and logs any failure. Never throws. */
 export async function sendNotification(
-  provider: NotificationsProvider,
+  notifications: NotificationsProvider,
   notification: NewNotification
 ): Promise<void> {
   try {
-    await provider.send(notification);
+    await notifications.send(notification);
   } catch (error) {
     console.error(
       `[notifications] Failed to send ${notification.kind} (${notification.idempotencyKey})`,
@@ -247,11 +258,11 @@ export async function sendNotification(
 
 /** Archives what the cause led to and logs any failure. Never throws. */
 export async function archiveNotifications(
-  provider: NotificationsProvider,
+  notifications: NotificationsProvider,
   cause: NotificationCause
 ): Promise<void> {
   try {
-    await provider.archive(cause);
+    await notifications.archive(cause);
   } catch (error) {
     console.error(
       `[notifications] Failed to archive Notifications for comment ${cause.commentId}`,
@@ -262,12 +273,12 @@ export async function archiveNotifications(
 
 /** One page of the user's Feed as Cadence-shaped rows. */
 export async function readFeedRows(
-  provider: NotificationsProvider,
+  notifications: NotificationsProvider,
   userId: number,
   cursor: string | null,
   pageSize: number
 ): Promise<FeedRowPage> {
-  const page = await provider.readFeed(userId, cursor, pageSize);
+  const page = await notifications.readFeed(userId, cursor, pageSize);
   return {
     rows: page.notifications.map(toFeedRow),
     nextCursor: page.nextCursor,

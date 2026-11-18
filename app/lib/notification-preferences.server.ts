@@ -1,11 +1,11 @@
 import { eq } from "drizzle-orm";
-import { coupons, purchases, UserRole, users } from "~/db/schema";
+import { coupons, courses, purchases, UserRole, users } from "~/db/schema";
 import { ALL_NOTIFICATION_TOPICS } from "~/lib/notification-preferences";
 import { z } from "zod";
 import type { NotificationTopic } from "~/lib/notifications";
 import type { NotificationsProvider } from "~/lib/notifications.server";
 import { setNotificationPreference } from "~/lib/notification-users.server";
-import type { Db } from "~/lib/refunds.server";
+import type { Db } from "~/db";
 
 // ─── The Notifications card on /settings ───
 // A switch shows by what the person is or has, not by their role alone: a
@@ -22,7 +22,13 @@ export function visibleNotificationTopics(
     .from(users)
     .where(eq(users.id, userId))
     .get()?.role;
-  const isInstructor = role === UserRole.Instructor;
+  // Enrollment and Discussion Question Notifications go to a course's
+  // instructorId, whatever that person's role, so the switches follow that.
+  const teachesACourse = !!db
+    .select({ id: courses.id })
+    .from(courses)
+    .where(eq(courses.instructorId, userId))
+    .get();
   const hasPurchase = !!db
     .select({ id: purchases.id })
     .from(purchases)
@@ -40,8 +46,8 @@ export function visibleNotificationTopics(
     "refund-request-updates": hasPurchase,
     "open-refund-requests": role === UserRole.Admin,
     "seat-claims": hasTeamLicence,
-    enrollments: isInstructor,
-    "discussion-questions": isInstructor,
+    enrollments: teachesACourse,
+    "discussion-questions": teachesACourse,
     "discussion-replies": true,
   };
   return ALL_NOTIFICATION_TOPICS.filter((topic) => visible[topic]);
@@ -62,7 +68,7 @@ export type SaveNotificationPreferenceResult =
  */
 export async function saveNotificationPreference(
   db: Db,
-  provider: NotificationsProvider,
+  notifications: NotificationsProvider,
   userId: number,
   input: unknown
 ): Promise<SaveNotificationPreferenceResult> {
@@ -74,6 +80,6 @@ export async function saveNotificationPreference(
     return { ok: false, status: 400, error: "Invalid Notification Preference." };
   }
   const { topic, enabled } = parsed.data;
-  await setNotificationPreference(provider, userId, topic, enabled);
+  await setNotificationPreference(notifications, userId, topic, enabled);
   return { ok: true };
 }

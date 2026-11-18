@@ -1,11 +1,11 @@
 import { and, eq } from "drizzle-orm";
-import { courses, enrollments, users } from "~/db/schema";
+import { courses, enrollments } from "~/db/schema";
+import { findNotificationPerson } from "~/lib/notification-users.server";
 import {
   sendNotification,
-  type NotificationPerson,
   type NotificationsProvider,
 } from "~/lib/notifications.server";
-import type { Db } from "~/lib/refunds.server";
+import type { Db } from "~/db";
 
 // ─── Enrollment ───
 // Giving a Student their Enrollment on a course, after an Individual Purchase
@@ -24,17 +24,6 @@ export function findEnrollment(db: Db, userId: number, courseId: number) {
       and(eq(enrollments.userId, userId), eq(enrollments.courseId, courseId))
     )
     .get();
-}
-
-export function toNotificationPerson(
-  user: typeof users.$inferSelect
-): NotificationPerson {
-  return {
-    id: user.id,
-    name: user.name,
-    email: user.email,
-    avatarUrl: user.avatarUrl,
-  };
 }
 
 /**
@@ -67,17 +56,13 @@ export async function enrollStudent(
   // Nobody is notified of their own action: an Instructor enrolling in their
   // own course hears nothing.
   if (course.instructorId !== userId) {
-    const student = db.select().from(users).where(eq(users.id, userId)).get();
-    const instructor = db
-      .select()
-      .from(users)
-      .where(eq(users.id, course.instructorId))
-      .get();
+    const student = findNotificationPerson(db, userId);
+    const instructor = findNotificationPerson(db, course.instructorId);
     if (student && instructor) {
       await sendNotification(notifications, {
         kind: "enrollment",
-        recipients: [toNotificationPerson(instructor)],
-        actor: toNotificationPerson(student),
+        recipients: [instructor],
+        actor: student,
         data: { courseId: course.id, courseTitle: course.title },
         idempotencyKey: `enrollment:${enrollment.id}`,
         cause: null,

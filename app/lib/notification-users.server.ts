@@ -1,3 +1,6 @@
+import { eq } from "drizzle-orm";
+import type { Db } from "~/db";
+import { users } from "~/db/schema";
 import {
   DEFAULT_NOTIFICATION_PREFERENCES,
   type NotificationChannel,
@@ -16,18 +19,39 @@ import type {
 // Feed rows show the sender as they are now, and gives a first-time user the
 // default Notification Preferences. Role is never synced.
 
+/** A user row as the recipient or actor of a Notification. */
+export function toNotificationPerson(
+  user: typeof users.$inferSelect
+): NotificationPerson {
+  return {
+    id: user.id,
+    name: user.name,
+    email: user.email,
+    avatarUrl: user.avatarUrl,
+  };
+}
+
+/** The user with this id as a recipient or actor, or undefined if there is none. */
+export function findNotificationPerson(
+  db: Db,
+  userId: number
+): NotificationPerson | undefined {
+  const user = db.select().from(users).where(eq(users.id, userId)).get();
+  return user && toNotificationPerson(user);
+}
+
 /**
  * Identifies the user and writes the default Notification Preferences only if
  * they have none yet. Best-effort: a failure is logged, never thrown.
  */
 export async function syncNotificationUser(
-  provider: NotificationsProvider,
+  notifications: NotificationsProvider,
   person: NotificationPerson
 ): Promise<void> {
   try {
-    await provider.identifyUser(person);
-    if ((await provider.readPreferences(person.id)) === null) {
-      await provider.setPreferences(person.id, DEFAULT_NOTIFICATION_PREFERENCES);
+    await notifications.identifyUser(person);
+    if ((await notifications.readPreferences(person.id)) === null) {
+      await notifications.setPreferences(person.id, DEFAULT_NOTIFICATION_PREFERENCES);
     }
   } catch (error) {
     console.error(`[notifications] Failed to sync user ${person.id}`, error);
@@ -39,10 +63,10 @@ export async function syncNotificationUser(
  * (a user never synced, a Topic added later) reads as its default.
  */
 export async function readNotificationPreferences(
-  provider: NotificationsProvider,
+  notifications: NotificationsProvider,
   userId: number
 ): Promise<NotificationPreferences> {
-  return withDefaults(await provider.readPreferences(userId));
+  return withDefaults(await notifications.readPreferences(userId));
 }
 
 /**
@@ -51,7 +75,7 @@ export async function readNotificationPreferences(
  * the caller can tell the person it wasn't saved.
  */
 export async function setNotificationPreference(
-  provider: NotificationsProvider,
+  notifications: NotificationsProvider,
   userId: number,
   topic: NotificationTopic,
   enabled: boolean,
@@ -60,8 +84,8 @@ export async function setNotificationPreference(
   const change = { [topic]: { [channel]: enabled } };
   // A user with no stored set gets the defaults too: at the provider an unset
   // Topic counts as on, which would switch Enrollments on.
-  const stored = await provider.readPreferences(userId);
-  await provider.setPreferences(
+  const stored = await notifications.readPreferences(userId);
+  await notifications.setPreferences(
     userId,
     stored === null ? mergePreferences(DEFAULT_NOTIFICATION_PREFERENCES, change) : change
   );

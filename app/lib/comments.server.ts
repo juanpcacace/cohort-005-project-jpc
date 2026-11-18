@@ -8,7 +8,7 @@ import {
   type NotificationsProvider,
   sendNotification,
 } from "~/lib/notifications.server";
-import type { Db } from "~/lib/refunds.server";
+import type { Db } from "~/db";
 
 // ─── Comments ───
 // Discussion Questions (top-level comments) and Discussion Replies (one level
@@ -238,7 +238,10 @@ export async function deleteComment(
     .set({ deletedAt: now.toISOString() })
     .where(eq(comments.id, commentId))
     .returning()
-    .get()!;
+    .get();
+  if (!deleted) {
+    throw new Error("Comment not found");
+  }
 
   await archiveNotifications(notifications, { commentId });
 

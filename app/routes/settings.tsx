@@ -20,8 +20,8 @@ import { listRefundRequestsForBuyer } from "~/lib/refunds.server";
 import { defaultNotificationsProvider } from "~/lib/notifications.server";
 import { updateProfile } from "~/lib/users.server";
 import { readNotificationPreferences } from "~/lib/notification-users.server";
-import { visibleNotificationTopics } from "~/lib/notification-settings.server";
-import { NotificationSettingsCard } from "~/components/notification-settings-card";
+import { visibleNotificationTopics } from "~/lib/notification-preferences.server";
+import { NotificationPreferencesCard } from "~/components/notification-preferences-card";
 
 const settingsSchema = z.object({
   name: z.string().trim().min(1, "Name cannot be empty."),
@@ -207,7 +207,7 @@ export default function Settings({ loaderData }: Route.ComponentProps) {
         </CardContent>
       </Card>
 
-      <NotificationSettingsCard
+      <NotificationPreferencesCard
         key={user.id}
         topics={notificationTopics}
         preferences={notificationPreferences}

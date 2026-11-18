@@ -1,6 +1,9 @@
 import Database from "better-sqlite3";
-import { drizzle } from "drizzle-orm/better-sqlite3";
+import { type BetterSQLite3Database, drizzle } from "drizzle-orm/better-sqlite3";
 import * as schema from "./schema";
+
+/** The database every service takes first, so tests can hand in an in-memory one. */
+export type Db = BetterSQLite3Database<typeof schema>;
 
 // The connection is opened lazily, on first use. Opening it at module scope
 // made this module side-effectful, which meant Rollup could not drop it from
