@@ -7,8 +7,10 @@ import {
   type LucideIcon,
   MessageSquare,
   Receipt,
+  Settings,
   UsersRound,
 } from "lucide-react";
+import { NOTIFICATION_SETTINGS_ANCHOR } from "~/components/notification-settings-card";
 import { UserAvatar } from "~/components/user-avatar";
 import {
   FEED_POLL_INTERVAL_MS,
@@ -258,6 +260,18 @@ function NotificationPopover({
             className="ml-auto text-xs font-medium text-primary hover:underline disabled:opacity-40 disabled:hover:no-underline"
           >
             Mark all as read
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              onClose();
+              navigate(`/settings#${NOTIFICATION_SETTINGS_ANCHOR}`);
+            }}
+            aria-label="Notification settings"
+            title="Notification settings"
+            className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+          >
+            <Settings className="size-4" />
           </button>
         </div>
         <div ref={listRef} className="flex-1 overflow-y-auto">
