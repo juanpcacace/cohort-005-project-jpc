@@ -14,6 +14,8 @@ import {
   QuestionType,
   TeamMemberRole,
 } from "../app/db/schema";
+import { defaultNotificationsProvider } from "../app/lib/notifications.server";
+import { syncAllNotificationUsers } from "../app/lib/users.server";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -2810,6 +2812,13 @@ This course is still in draft while the cluster examples are rewritten against t
   }
 
   console.log(`Created ${watchEventRows.length} video watch events.`);
+
+  // ─── Sync users to the Notifications provider ───
+  // Name, email and avatar, plus the default Notification Preferences for
+  // anyone who has none yet. Logs and skips without KNOCK_SECRET_API_KEY.
+
+  const synced = await syncAllNotificationUsers(db, defaultNotificationsProvider());
+  console.log(`Synced ${synced} users to the Notifications provider.`);
 
   // ─── Summary ───
 

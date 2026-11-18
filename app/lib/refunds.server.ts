@@ -1,7 +1,6 @@
 import { and, asc, desc, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
-import type { BetterSQLite3Database } from "drizzle-orm/better-sqlite3";
 import { alias } from "drizzle-orm/sqlite-core";
-import * as schema from "~/db/schema";
+import type { Db } from "~/db";
 import {
   coupons,
   courses,
@@ -15,8 +14,19 @@ import {
   videoWatchEvents,
   LessonProgressStatus,
   RefundStatus,
+  UserRole,
 } from "~/db/schema";
 import { formatPrice } from "~/lib/utils";
+import {
+  type NotificationPerson,
+  type NotificationsProvider,
+  sendNotification,
+} from "~/lib/notifications.server";
+import { toSnippet } from "~/lib/notifications";
+import {
+  findNotificationPerson,
+  toNotificationPerson,
+} from "~/lib/notification-users.server";
 import {
   REFUND_COMPLETION_LIMIT,
   REFUND_WATCH_LIMIT_SECONDS,
@@ -30,9 +40,11 @@ import {
 // language and docs/adr/0001–0004 for why it works the way it does.
 //
 // Every function takes the database first, so tests can hand in an in-memory
-// one. Uses positional parameters (project convention).
+// one. Uses positional parameters (project convention). Raising and deciding a
+// Refund Request take the Notifications provider second and send after the
+// write commits; a failed send is logged and never fails the action. The
+// Postmark email is still returned for the route to send, as before.
 
-export type Db = BetterSQLite3Database<typeof schema>;
 type Tx = Parameters<Parameters<Db["transaction"]>[0]>[0];
 type Queryable = Db | Tx;
 
@@ -354,13 +366,14 @@ export type RaiseResult =
   | { ok: true; refundRequestId: number; kind: PurchaseKind; email: Email }
   | Failure;
 
-export function raiseRefundRequest(
+export async function raiseRefundRequest(
   db: Db,
+  notifications: NotificationsProvider,
   purchaseId: number,
   buyerId: number,
   reason: string,
   now: Date
-): RaiseResult {
+): Promise<RaiseResult> {
   const check = checkRefundRequest(db, purchaseId, buyerId, now);
   if (!check.ok) return check;
 
@@ -386,6 +399,16 @@ export function raiseRefundRequest(
     })
     .returning()
     .get();
+
+  await notifyRefundRequestRaised(
+    db,
+    notifications,
+    refundRequest.id,
+    toNotificationPerson(buyer),
+    course.title,
+    purchase.amountPaid,
+    reason
+  );
 
   return {
     ok: true,
@@ -611,14 +634,15 @@ function findOpenRefundRequest(
  * - A Team Licence: its Unclaimed Seats can never be claimed. Refused if any
  *   Seat has been claimed (docs/adr/0003).
  */
-export function approveRefundRequest(
+export async function approveRefundRequest(
   db: Db,
+  notifications: NotificationsProvider,
   refundRequestId: number,
   platformAdminId: number,
   note: string | null,
   now: Date
-): DecisionResult {
-  return db.transaction((tx): DecisionResult => {
+): Promise<DecisionResult> {
+  const result = db.transaction((tx): Decided | Failure => {
     const found = findOpenRefundRequest(tx, refundRequestId);
     if (!found.ok) return found;
 
@@ -680,8 +704,11 @@ export function approveRefundRequest(
     return {
       ok: true,
       email: buildDecisionEmail(tx, purchase, RefundStatus.Approved, note),
+      purchase,
     };
   });
+
+  return notifyDecision(db, notifications, result, refundRequestId, "refund-request-approved", note);
 }
 
 /**
@@ -689,13 +716,14 @@ export function approveRefundRequest(
  * the buyer may raise a new Refund Request. The note is required: it is how
  * the buyer learns whether another request is worth raising.
  */
-export function declineRefundRequest(
+export async function declineRefundRequest(
   db: Db,
+  notifications: NotificationsProvider,
   refundRequestId: number,
   platformAdminId: number,
   note: string,
   now: Date
-): DecisionResult {
+): Promise<DecisionResult> {
   const trimmedNote = note.trim();
 
   if (trimmedNote.length === 0) {
@@ -706,7 +734,7 @@ export function declineRefundRequest(
     };
   }
 
-  return db.transaction((tx): DecisionResult => {
+  const result = db.transaction((tx): Decided | Failure => {
     const found = findOpenRefundRequest(tx, refundRequestId);
     if (!found.ok) return found;
 
@@ -728,8 +756,18 @@ export function declineRefundRequest(
         RefundStatus.Declined,
         trimmedNote
       ),
+      purchase: found.purchase,
     };
   });
+
+  return notifyDecision(
+    db,
+    notifications,
+    result,
+    refundRequestId,
+    "refund-request-declined",
+    trimmedNote
+  );
 }
 
 /** The email the buyer gets once their Refund Request is decided. */
@@ -778,4 +816,93 @@ function buildDecisionEmail(
       "— The Cadence team",
     ].join("\n"),
   };
+}
+
+// ─── Refund Request Notifications ───
+
+/** A decision that went through, with the Purchase it was on. */
+type Decided = { ok: true; email: Email; purchase: Purchase };
+
+/** Where a buyer sees their Refund Requests. */
+function refundViewFor(kind: PurchaseKind): string {
+  return kind === "team_licence" ? "/team" : "/settings";
+}
+
+/**
+ * Confirms the Refund Request to the buyer, and tells every Platform Admin
+ * (whoever has the role now) there is an Open Refund Request to decide.
+ */
+async function notifyRefundRequestRaised(
+  db: Db,
+  notifications: NotificationsProvider,
+  refundRequestId: number,
+  buyer: NotificationPerson,
+  courseTitle: string,
+  amount: number,
+  reason: string
+) {
+  await sendNotification(notifications, {
+    kind: "refund-request-confirmation",
+    recipients: [buyer],
+    actor: null,
+    data: { refundRequestId, courseTitle, amount },
+    idempotencyKey: `refund-request-confirmation:${refundRequestId}`,
+    cause: null,
+  });
+
+  // Nobody is notified of their own action: a buyer who is also a Platform
+  // Admin gets the confirmation above but not the Open Refund Request.
+  const platformAdmins = db
+    .select()
+    .from(users)
+    .where(eq(users.role, UserRole.Admin))
+    .all()
+    .filter((admin) => admin.id !== buyer.id)
+    .map(toNotificationPerson);
+  if (platformAdmins.length === 0) return;
+
+  await sendNotification(notifications, {
+    kind: "open-refund-request",
+    recipients: platformAdmins,
+    actor: buyer,
+    data: { refundRequestId, courseTitle, amount, reason: toSnippet(reason) },
+    idempotencyKey: `open-refund-request:${refundRequestId}`,
+    cause: null,
+  });
+}
+
+/** Tells the buyer how their Refund Request was decided, then drops the Purchase from the result. */
+async function notifyDecision(
+  db: Db,
+  notifications: NotificationsProvider,
+  result: Decided | Failure,
+  refundRequestId: number,
+  kind: "refund-request-approved" | "refund-request-declined",
+  note: string | null
+): Promise<DecisionResult> {
+  if (!result.ok) return result;
+
+  const { purchase, email } = result;
+  const buyer = findNotificationPerson(db, purchase.userId);
+  const course = db.select().from(courses).where(eq(courses.id, purchase.courseId)).get();
+
+  if (buyer && course) {
+    await sendNotification(notifications, {
+      kind,
+      recipients: [buyer],
+      actor: null,
+      data: {
+        refundRequestId,
+        purchaseId: purchase.id,
+        courseTitle: course.title,
+        amount: purchase.amountPaid,
+        note,
+        refundView: refundViewFor(kindOf(getSeats(db, purchase.id))),
+      },
+      idempotencyKey: `${kind}:${refundRequestId}`,
+      cause: null,
+    });
+  }
+
+  return { ok: true, email };
 }
