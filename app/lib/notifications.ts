@@ -60,6 +60,17 @@ export type NotificationData = {
   };
   "refund-request-approved": RefundDecisionData;
   "refund-request-declined": RefundDecisionData;
+  "seat-claimed": {
+    seatId: number;
+    purchaseId: number;
+    courseTitle: string;
+    /** Unclaimed Seats left on the Team Licence after this claim. */
+    seatsLeft: number;
+  };
+  enrollment: {
+    courseId: number;
+    courseTitle: string;
+  };
 };
 
 /** What a Refund Request decision Notification carries. */
@@ -83,6 +94,8 @@ export const NOTIFICATION_TOPICS: Record<NotificationKind, NotificationTopic> = 
   "refund-request-approved": "refund-request-updates",
   "refund-request-declined": "refund-request-updates",
   "open-refund-request": "open-refund-requests",
+  "seat-claimed": "seat-claims",
+  enrollment: "enrollments",
 };
 
 export function isNotificationKind(value: string): value is NotificationKind {
@@ -192,7 +205,30 @@ export function toFeedRow(notification: FeedNotification): FeedRow {
         link: data.refundView,
       };
     }
+    case "seat-claimed": {
+      const { data } = notification;
+      return {
+        ...base,
+        title: `${actorName} claimed a Seat on ${data.courseTitle}`,
+        snippet: seatsLeftText(data.seatsLeft),
+        link: "/team",
+      };
+    }
+    case "enrollment": {
+      const { data } = notification;
+      return {
+        ...base,
+        title: `${actorName} enrolled in ${data.courseTitle}`,
+        snippet: "A new Student in your course.",
+        link: `/instructor/${data.courseId}/students`,
+      };
+    }
   }
+}
+
+function seatsLeftText(seatsLeft: number): string {
+  if (seatsLeft === 0) return "No Seats left.";
+  return `${seatsLeft} ${seatsLeft === 1 ? "Seat" : "Seats"} left.`;
 }
 
 /**
