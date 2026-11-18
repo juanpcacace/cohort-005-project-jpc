@@ -8,6 +8,11 @@ import {
   type NotificationKind,
   toFeedRow,
 } from "~/lib/notifications";
+import { NOTIFICATION_TOPICS } from "~/lib/notifications";
+import {
+  mergePreferences,
+  type NotificationPreferenceChanges,
+} from "~/lib/notification-preferences";
 
 // ─── Notifications provider (ADR 0013) ───
 // Every use of the Notifications vendor goes through `NotificationsProvider`,
@@ -56,6 +61,12 @@ export interface NotificationsProvider {
   readCounts(userId: number): Promise<FeedCounts>;
   /** Marks one of the user's own Notifications read. Anyone else's is left alone. */
   markRead(userId: number, notificationId: string): Promise<void>;
+  /** Creates or updates the user with their name, email and avatar. */
+  identifyUser(person: NotificationPerson): Promise<void>;
+  /** The user's stored Notification Preferences, or null when they have none yet. */
+  readPreferences(userId: number): Promise<NotificationPreferenceChanges | null>;
+  /** Merges `changes` into the stored set. Topics and channels left out keep their value. */
+  setPreferences(userId: number, changes: NotificationPreferenceChanges): Promise<void>;
 }
 
 // ─── No-op ───
@@ -78,6 +89,11 @@ export function noopProvider(
       return { unseen: 0, unread: 0 };
     },
     async markRead() {},
+    async identifyUser() {},
+    async readPreferences() {
+      return null;
+    },
+    async setPreferences() {},
   };
 }
 
@@ -86,18 +102,27 @@ export function noopProvider(
 export type FakeProvider = NotificationsProvider & {
   /** Every Notification sent, in order. */
   sent: NewNotification[];
+  /** Every identified user by id, as last identified. */
+  identified: Map<number, NotificationPerson>;
 };
 
 export function fakeProvider(now: () => Date = () => new Date()): FakeProvider {
   const sent: NewNotification[] = [];
+  const identified = new Map<number, NotificationPerson>();
+  const preferences = new Map<number, NotificationPreferenceChanges>();
+  // Like Knock: a muted Topic creates no Feed entry at all. Unset counts as on.
+  const isMuted = (userId: number, kind: NotificationKind) =>
+    preferences.get(userId)?.[NOTIFICATION_TOPICS[kind]]?.feed === false;
   const feeds = new Map<number, FeedNotification[]>();
   let nextId = 1;
 
   return {
     sent,
+    identified,
     async send(notification) {
       sent.push(notification);
       for (const recipient of notification.recipients) {
+        if (isMuted(recipient.id, notification.kind)) continue;
         const entry = {
           id: `n${nextId++}`,
           kind: notification.kind,
@@ -135,6 +160,18 @@ export function fakeProvider(now: () => Date = () => new Date()): FakeProvider {
         entry.read = true;
         entry.seen = true;
       }
+    },
+    async identifyUser(person) {
+      identified.set(person.id, { ...person });
+    },
+    async readPreferences(userId) {
+      return structuredClone(preferences.get(userId) ?? null);
+    },
+    async setPreferences(userId, changes) {
+      preferences.set(
+        userId,
+        mergePreferences(preferences.get(userId) ?? null, changes)
+      );
     },
   };
 }
