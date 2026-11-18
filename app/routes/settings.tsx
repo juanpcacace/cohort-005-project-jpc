@@ -19,6 +19,9 @@ import { formatPrice } from "~/lib/utils";
 import { listRefundRequestsForBuyer } from "~/lib/refunds.server";
 import { defaultNotificationsProvider } from "~/lib/notifications.server";
 import { updateProfile } from "~/lib/users.server";
+import { readNotificationPreferences } from "~/lib/notification-users.server";
+import { visibleNotificationTopics } from "~/lib/notification-settings.server";
+import { NotificationSettingsCard } from "~/components/notification-settings-card";
 
 const settingsSchema = z.object({
   name: z.string().trim().min(1, "Name cannot be empty."),
@@ -52,8 +55,20 @@ export async function loader({ request }: Route.LoaderArgs) {
   }
 
   const refundRequests = listRefundRequestsForBuyer(db, currentUserId);
+  const notificationPreferences = await readNotificationPreferences(
+    defaultNotificationsProvider(),
+    currentUserId
+  ).catch((error) => {
+    console.error(
+      `[notifications] Failed to read preferences for user ${currentUserId}`,
+      error
+    );
+    return null;
+  });
 
   return {
+    notificationTopics: visibleNotificationTopics(db, currentUserId),
+    notificationPreferences,
     user: {
       id: currentUser.id,
       name: currentUser.name,
@@ -101,7 +116,8 @@ export async function action({ request }: Route.ActionArgs) {
 }
 
 export default function Settings({ loaderData }: Route.ComponentProps) {
-  const { user, refundRequests } = loaderData;
+  const { user, refundRequests, notificationTopics, notificationPreferences } =
+    loaderData;
   const openCount = refundRequests.filter(
     (refundRequest) => refundRequest.status === RefundStatus.Open
   ).length;
@@ -190,6 +206,12 @@ export default function Settings({ loaderData }: Route.ComponentProps) {
           </fetcher.Form>
         </CardContent>
       </Card>
+
+      <NotificationSettingsCard
+        key={user.id}
+        topics={notificationTopics}
+        preferences={notificationPreferences}
+      />
 
       {refundRequests.length > 0 && (
         <Card className="mt-8 max-w-md">
