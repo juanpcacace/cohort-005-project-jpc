@@ -4,6 +4,7 @@ import * as schema from "~/db/schema";
 import { UserRole } from "~/db/schema";
 import { enrollStudent } from "./enrollments.server";
 import { approveRefundRequest, raiseRefundRequest } from "./refunds.server";
+import { noopProvider } from "./notifications.server";
 
 type TestDb = ReturnType<typeof createTestDb>;
 
@@ -41,7 +42,7 @@ describe("enrollStudent", () => {
     ).toThrow("User is already enrolled in this course");
   });
 
-  it("enrolls a Lapsed Student again", () => {
+  it("enrolls a Lapsed Student again", async () => {
     const admin = db
       .insert(schema.users)
       .values({ name: "Pat", email: "pat@example.com", role: UserRole.Admin })
@@ -58,9 +59,9 @@ describe("enrollStudent", () => {
       .returning()
       .get();
     enrollStudent(db, base.user.id, base.course.id, new Date(2026, 9, 3));
-    const raised = raiseRefundRequest(db, purchase.id, base.user.id, "Not for me", NOW);
+    const raised = await raiseRefundRequest(db, noopProvider(() => {}), purchase.id, base.user.id, "Not for me", NOW);
     if (!raised.ok) throw new Error("expected the Refund Request to be raised");
-    approveRefundRequest(db, raised.refundRequestId, admin.id, null, NOW);
+    await approveRefundRequest(db, noopProvider(() => {}), raised.refundRequestId, admin.id, null, NOW);
 
     const later = new Date(2026, 9, 20);
     const enrollment = enrollStudent(db, base.user.id, base.course.id, later);

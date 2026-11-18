@@ -1,4 +1,5 @@
 import { commentAnchor } from "~/lib/comments";
+import { formatPrice } from "~/lib/utils";
 
 // ─── Notifications (shared by server and browser) ───
 // The Cadence-side vocabulary for Notifications: the kinds, the Notification
@@ -37,12 +38,43 @@ export type NotificationData = {
     courseSlug: string;
     snippet: string;
   };
+  "refund-request-confirmation": {
+    refundRequestId: number;
+    courseTitle: string;
+    /** Cents. */
+    amount: number;
+  };
+  "open-refund-request": {
+    refundRequestId: number;
+    courseTitle: string;
+    /** Cents. */
+    amount: number;
+    reason: string;
+  };
+  "refund-request-approved": RefundDecisionData;
+  "refund-request-declined": RefundDecisionData;
+};
+
+/** What a Refund Request decision Notification carries. */
+type RefundDecisionData = {
+  refundRequestId: number;
+  purchaseId: number;
+  courseTitle: string;
+  /** Cents. */
+  amount: number;
+  note: string | null;
+  /** Where the buyer sees their Refund Requests: `/settings`, or `/team` for a Team Licence. */
+  refundView: string;
 };
 
 export type NotificationKind = keyof NotificationData;
 
 export const NOTIFICATION_TOPICS: Record<NotificationKind, NotificationTopic> = {
   "discussion-reply": "discussion-replies",
+  "refund-request-confirmation": "refund-request-updates",
+  "refund-request-approved": "refund-request-updates",
+  "refund-request-declined": "refund-request-updates",
+  "open-refund-request": "open-refund-requests",
 };
 
 export function isNotificationKind(value: string): value is NotificationKind {
@@ -105,6 +137,42 @@ export function toFeedRow(notification: FeedNotification): FeedRow {
         title: `${actorName} replied to your question`,
         snippet: data.snippet,
         link: `/courses/${data.courseSlug}/lessons/${data.lessonId}#${commentAnchor(data.commentId)}`,
+      };
+    }
+    case "refund-request-confirmation": {
+      const { data } = notification;
+      return {
+        ...base,
+        title: "We've received your Refund Request",
+        snippet: `${data.courseTitle}, ${formatPrice(data.amount)}. It's under review.`,
+        link: null,
+      };
+    }
+    case "open-refund-request": {
+      const { data } = notification;
+      return {
+        ...base,
+        title: `${actorName} requested a ${formatPrice(data.amount)} refund`,
+        snippet: `${data.courseTitle}: ${data.reason}`,
+        link: "/admin/refunds",
+      };
+    }
+    case "refund-request-approved": {
+      const { data } = notification;
+      return {
+        ...base,
+        title: `Your Refund Request for ${data.courseTitle} was approved`,
+        snippet: data.note ?? `${formatPrice(data.amount)} is on its way back to you.`,
+        link: data.refundView,
+      };
+    }
+    case "refund-request-declined": {
+      const { data } = notification;
+      return {
+        ...base,
+        title: `Your Refund Request for ${data.courseTitle} was declined`,
+        snippet: `${data.note ?? ""} You can ask again.`.trim(),
+        link: data.refundView,
       };
     }
   }

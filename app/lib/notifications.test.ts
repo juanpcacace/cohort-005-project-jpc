@@ -35,6 +35,101 @@ describe("toFeedRow", () => {
   });
 });
 
+describe("toFeedRow for Refund Requests", () => {
+  const at = { sentAt: "2026-10-06T12:00:00.000Z", seen: false, read: false };
+  const decision = {
+    refundRequestId: 5,
+    purchaseId: 9,
+    courseTitle: "JS Basics",
+    amount: 7900,
+    refundView: "/settings",
+  };
+
+  it("writes the confirmation from Cadence, with nowhere to go", () => {
+    const row = toFeedRow({
+      id: "m2",
+      kind: "refund-request-confirmation",
+      actor: null,
+      data: { refundRequestId: 5, courseTitle: "JS Basics", amount: 7900 },
+      ...at,
+    });
+
+    expect(row).toMatchObject({
+      topic: "refund-request-updates",
+      actor: null,
+      title: "We've received your Refund Request",
+      snippet: "JS Basics, $79.00. It's under review.",
+      link: null,
+    });
+  });
+
+  it("writes an Open Refund Request with who asked and why, linking to admin refunds", () => {
+    const row = toFeedRow({
+      id: "m3",
+      kind: "open-refund-request",
+      actor: { name: "Ada", avatarUrl: null },
+      data: { refundRequestId: 5, courseTitle: "JS Basics", amount: 7900, reason: "Too hard." },
+      ...at,
+    });
+
+    expect(row).toMatchObject({
+      topic: "open-refund-requests",
+      title: "Ada requested a $79.00 refund",
+      snippet: "JS Basics: Too hard.",
+      link: "/admin/refunds",
+    });
+  });
+
+  it("writes an approval with the decision note, linking to the buyer's refund view", () => {
+    const row = toFeedRow({
+      id: "m4",
+      kind: "refund-request-approved",
+      actor: null,
+      data: { ...decision, note: "Sorry it didn't fit." },
+      ...at,
+    });
+
+    expect(row).toMatchObject({
+      topic: "refund-request-updates",
+      title: "Your Refund Request for JS Basics was approved",
+      snippet: "Sorry it didn't fit.",
+      link: "/settings",
+    });
+  });
+
+  it("writes an approval without a note as the money on its way", () => {
+    const row = toFeedRow({
+      id: "m5",
+      kind: "refund-request-approved",
+      actor: null,
+      data: { ...decision, note: null, refundView: "/team" },
+      ...at,
+    });
+
+    expect(row).toMatchObject({
+      snippet: "$79.00 is on its way back to you.",
+      link: "/team",
+    });
+  });
+
+  it("writes a decline with the note and that they can ask again", () => {
+    const row = toFeedRow({
+      id: "m6",
+      kind: "refund-request-declined",
+      actor: null,
+      data: { ...decision, note: "Past half way." },
+      ...at,
+    });
+
+    expect(row).toMatchObject({
+      topic: "refund-request-updates",
+      title: "Your Refund Request for JS Basics was declined",
+      snippet: "Past half way. You can ask again.",
+      link: "/settings",
+    });
+  });
+});
+
 describe("toSnippet", () => {
   it("drops markdown and keeps one line", () => {
     expect(
