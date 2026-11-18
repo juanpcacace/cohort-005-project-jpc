@@ -1,13 +1,23 @@
-import { eq } from "drizzle-orm";
-import { coupons, enrollments, purchases } from "~/db/schema";
-import { enrollStudent, findEnrollment } from "~/lib/enrollments.server";
+import { and, eq, isNull } from "drizzle-orm";
+import { coupons, courses, enrollments, purchases, users } from "~/db/schema";
+import {
+  enrollStudent,
+  findEnrollment,
+  toNotificationPerson,
+} from "~/lib/enrollments.server";
+import {
+  sendNotification,
+  type NotificationsProvider,
+} from "~/lib/notifications.server";
 import { getSeatAvailability, type Db } from "~/lib/refunds.server";
 
 // ─── Seat claim ───
 // A Student claiming one Seat on a Team Licence by its code, which turns it
-// into a Claimed Seat and gives them an Enrollment.
+// into a Claimed Seat and gives them an Enrollment. The Team Admin who owns
+// the Team Licence hears about each claim, with the Seats left.
 //
-// Takes the database first and `now` last (project convention).
+// Takes the database first, then the Notifications provider, and `now` last
+// (project convention).
 
 export const SEAT_ON_HOLD =
   "This seat can't be claimed right now. Ask the person who shared it with you.";
@@ -26,13 +36,14 @@ export function getSeatByCode(db: Db, code: string) {
  * Claims the Seat with this code for the Student. `userCountry` must match the
  * Team Licence's country when it has one (empty string when unknown).
  */
-export function claimSeat(
+export async function claimSeat(
   db: Db,
+  notifications: NotificationsProvider,
   code: string,
   userId: number,
   userCountry: string,
   now: Date
-): ClaimSeatResult {
+): Promise<ClaimSeatResult> {
   const seat = getSeatByCode(db, code);
   if (!seat) {
     return { ok: false, error: "Coupon not found" };
@@ -73,7 +84,63 @@ export function claimSeat(
     .where(eq(coupons.id, seat.id))
     .run();
 
-  const enrollment = enrollStudent(db, userId, seat.courseId, now);
+  const enrollment = await enrollStudent(
+    db,
+    notifications,
+    userId,
+    seat.courseId,
+    now
+  );
+
+  if (purchase) {
+    await notifySeatClaimed(db, notifications, seat, purchase.userId, userId);
+  }
 
   return { ok: true, enrollment };
+}
+
+/**
+ * Tells the Team Admin who bought the Team Licence that a Seat was claimed.
+ * One per claim; there is no "all claimed" Notification. A Team Admin
+ * claiming a Seat themselves hears nothing.
+ */
+async function notifySeatClaimed(
+  db: Db,
+  notifications: NotificationsProvider,
+  seat: typeof coupons.$inferSelect,
+  teamAdminId: number,
+  claimerId: number
+) {
+  if (teamAdminId === claimerId) return;
+
+  const teamAdmin = db.select().from(users).where(eq(users.id, teamAdminId)).get();
+  const claimer = db.select().from(users).where(eq(users.id, claimerId)).get();
+  const course = db.select().from(courses).where(eq(courses.id, seat.courseId)).get();
+  if (!teamAdmin || !claimer || !course) return;
+
+  const seatsLeft = db
+    .select({ id: coupons.id })
+    .from(coupons)
+    .where(
+      and(
+        eq(coupons.purchaseId, seat.purchaseId),
+        isNull(coupons.redeemedByUserId),
+        isNull(coupons.refundedAt)
+      )
+    )
+    .all().length;
+
+  await sendNotification(notifications, {
+    kind: "seat-claimed",
+    recipients: [toNotificationPerson(teamAdmin)],
+    actor: toNotificationPerson(claimer),
+    data: {
+      seatId: seat.id,
+      purchaseId: seat.purchaseId,
+      courseTitle: course.title,
+      seatsLeft,
+    },
+    idempotencyKey: `seat-claimed:${seat.id}`,
+    cause: null,
+  });
 }

@@ -271,11 +271,21 @@ refund_workflow_stage() {
   workflow_stage "$1" "$2" "$3"
 }
 
+SEAT_CLAIMED_DATA='{"seatId":0,"purchaseId":0,"courseTitle":"Wizard course","seatsLeft":0}'
+ENROLLMENT_DATA='{"courseId":0,"courseTitle":"Wizard course"}'
+
+# course_workflow_stage KEY CATEGORY DATA_JSON: Seat claim and Enrollment kinds
+# carry no snippet either, so their feed step body uses the course title.
+course_workflow_stage() {
+  note "This kind has no snippet: where a step says {{ data.snippet }}, use {{ data.courseTitle }}."
+  workflow_stage "$1" "$2" "$3"
+}
+
 run_wizard() {
 
 cd "$(dirname "$0")/.."
 
-TOTAL_STAGES=8
+TOTAL_STAGES=10
 
 banner "Knock setup for the Notification Feed"
 
@@ -314,6 +324,15 @@ pause "Press Enter to continue"
 
 stage "Workflow: open-refund-request"
 refund_workflow_stage "open-refund-request" "open-refund-requests" "$OPEN_REFUND_REQUEST_DATA"
+pause "Press Enter to continue"
+
+stage "Workflow: seat-claimed"
+course_workflow_stage "seat-claimed" "seat-claims" "$SEAT_CLAIMED_DATA"
+pause "Press Enter to continue"
+
+stage "Workflow: enrollment"
+note "Enrollments are off by default: Cadence writes that into each user's preferences at sync."
+course_workflow_stage "enrollment" "enrollments" "$ENROLLMENT_DATA"
 pause "Press Enter to continue"
 
 stage "Verify end to end"

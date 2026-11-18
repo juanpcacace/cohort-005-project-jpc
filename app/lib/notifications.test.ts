@@ -152,6 +152,51 @@ describe("toFeedRow for Refund Requests", () => {
   });
 });
 
+describe("toFeedRow for Seat claims and Enrollments", () => {
+  const ada = { name: "Ada", avatarUrl: null };
+  const seatClaim = (seatsLeft: number) =>
+    toFeedRow({
+      id: "m10",
+      kind: "seat-claimed",
+      actor: ada,
+      data: { seatId: 4, purchaseId: 2, courseTitle: "JS Basics", seatsLeft },
+      sentAt: "2026-10-06T12:00:00.000Z",
+      seen: false,
+      read: false,
+    });
+
+  it("names who claimed the Seat and links to the team page", () => {
+    expect(seatClaim(1)).toMatchObject({
+      topic: "seat-claims",
+      title: "Ada claimed a Seat on JS Basics",
+      snippet: "1 Seat left.",
+      link: "/team",
+    });
+  });
+
+  it("says when no Seats are left", () => {
+    expect(seatClaim(0).snippet).toBe("No Seats left.");
+  });
+
+  it("links an Enrollment to the Instructor's students page", () => {
+    const row = toFeedRow({
+      id: "m11",
+      kind: "enrollment",
+      actor: ada,
+      data: { courseId: 9, courseTitle: "JS Basics" },
+      sentAt: "2026-10-06T12:00:00.000Z",
+      seen: false,
+      read: false,
+    });
+
+    expect(row).toMatchObject({
+      topic: "enrollments",
+      title: "Ada enrolled in JS Basics",
+      link: "/instructor/9/students",
+    });
+  });
+});
+
 describe("toSnippet", () => {
   it("drops markdown and keeps one line", () => {
     expect(

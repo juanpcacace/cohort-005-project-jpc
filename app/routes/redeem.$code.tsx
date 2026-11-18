@@ -8,6 +8,7 @@ import { resolveCountry } from "~/lib/country.server";
 import { parseParams, parseFormData } from "~/lib/validation";
 import { getSeatAvailability } from "~/lib/refunds.server";
 import { findEnrollment } from "~/lib/enrollments.server";
+import { defaultNotificationsProvider } from "~/lib/notifications.server";
 import {
   SEAT_ON_HOLD,
   SEAT_REFUNDED,
@@ -112,8 +113,9 @@ export async function action({ params, request }: Route.ActionArgs) {
   }
 
   const userCountry = await resolveCountry(request);
-  const result = claimSeat(
+  const result = await claimSeat(
     db,
+    defaultNotificationsProvider(),
     code,
     currentUserId,
     userCountry ?? "",
