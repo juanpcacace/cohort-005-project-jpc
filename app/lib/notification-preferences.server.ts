@@ -1,5 +1,5 @@
 import { eq } from "drizzle-orm";
-import { coupons, purchases, UserRole, users } from "~/db/schema";
+import { coupons, courses, purchases, UserRole, users } from "~/db/schema";
 import { ALL_NOTIFICATION_TOPICS } from "~/lib/notification-preferences";
 import { z } from "zod";
 import type { NotificationTopic } from "~/lib/notifications";
@@ -22,7 +22,13 @@ export function visibleNotificationTopics(
     .from(users)
     .where(eq(users.id, userId))
     .get()?.role;
-  const isInstructor = role === UserRole.Instructor;
+  // Enrollment and Discussion Question Notifications go to a course's
+  // instructorId, whatever that person's role, so the switches follow that.
+  const teachesACourse = !!db
+    .select({ id: courses.id })
+    .from(courses)
+    .where(eq(courses.instructorId, userId))
+    .get();
   const hasPurchase = !!db
     .select({ id: purchases.id })
     .from(purchases)
@@ -40,8 +46,8 @@ export function visibleNotificationTopics(
     "refund-request-updates": hasPurchase,
     "open-refund-requests": role === UserRole.Admin,
     "seat-claims": hasTeamLicence,
-    enrollments: isInstructor,
-    "discussion-questions": isInstructor,
+    enrollments: teachesACourse,
+    "discussion-questions": teachesACourse,
     "discussion-replies": true,
   };
   return ALL_NOTIFICATION_TOPICS.filter((topic) => visible[topic]);

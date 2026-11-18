@@ -68,8 +68,46 @@ describe("visibleNotificationTopics", () => {
     ]);
   });
 
-  it("shows an Instructor Enrollments and Discussion Questions", () => {
+  it("shows the Instructor of a course Enrollments and Discussion Questions", () => {
     expect(visibleNotificationTopics(db, base.instructor.id)).toEqual([
+      "enrollments",
+      "discussion-questions",
+      "discussion-replies",
+    ]);
+  });
+
+  it("hides Enrollments and Discussion Questions from an Instructor with no course", () => {
+    const instructor = db
+      .insert(schema.users)
+      .values({ name: "Ira", email: "ira@example.com", role: UserRole.Instructor })
+      .returning()
+      .get();
+
+    expect(visibleNotificationTopics(db, instructor.id)).toEqual([
+      "discussion-replies",
+    ]);
+  });
+
+  it("shows a Platform Admin who is a course's Instructor Enrollments and Discussion Questions", () => {
+    const admin = db
+      .insert(schema.users)
+      .values({ name: "Pat", email: "pat@example.com", role: UserRole.Admin })
+      .returning()
+      .get();
+    db.insert(schema.courses)
+      .values({
+        title: "Admin Course",
+        slug: "admin-course",
+        description: "A course a Platform Admin teaches",
+        salesCopy: "## Admin Course",
+        instructorId: admin.id,
+        categoryId: base.category.id,
+        status: schema.CourseStatus.Published,
+      })
+      .run();
+
+    expect(visibleNotificationTopics(db, admin.id)).toEqual([
+      "open-refund-requests",
       "enrollments",
       "discussion-questions",
       "discussion-replies",

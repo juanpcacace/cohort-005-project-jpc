@@ -102,7 +102,7 @@ describe("toFeedRow for Refund Requests", () => {
     });
   });
 
-  it("writes an approval with the decision note, linking to the buyer's refund view", () => {
+  it("writes an approval naming the course, the Purchase and the decision note, linking to the buyer's refund view", () => {
     const row = toFeedRow({
       id: "m4",
       kind: "refund-request-approved",
@@ -114,12 +114,12 @@ describe("toFeedRow for Refund Requests", () => {
     expect(row).toMatchObject({
       topic: "refund-request-updates",
       title: "Your Refund Request for JS Basics was approved",
-      snippet: "Sorry it didn't fit.",
+      snippet: "$79.00 from Purchase #9 is on its way back to you. Sorry it didn't fit.",
       link: "/settings",
     });
   });
 
-  it("writes an approval without a note as the money on its way", () => {
+  it("writes an approval without a note as the Purchase's money on its way", () => {
     const row = toFeedRow({
       id: "m5",
       kind: "refund-request-approved",
@@ -129,12 +129,12 @@ describe("toFeedRow for Refund Requests", () => {
     });
 
     expect(row).toMatchObject({
-      snippet: "$79.00 is on its way back to you.",
+      snippet: "$79.00 from Purchase #9 is on its way back to you.",
       link: "/team",
     });
   });
 
-  it("writes a decline with the note and that they can ask again", () => {
+  it("writes a decline naming the Purchase, with the note and that they can ask again", () => {
     const row = toFeedRow({
       id: "m6",
       kind: "refund-request-declined",
@@ -146,7 +146,7 @@ describe("toFeedRow for Refund Requests", () => {
     expect(row).toMatchObject({
       topic: "refund-request-updates",
       title: "Your Refund Request for JS Basics was declined",
-      snippet: "Past half way. You can ask again.",
+      snippet: "Purchase #9 ($79.00) was not refunded. Past half way. You can ask again.",
       link: "/settings",
     });
   });

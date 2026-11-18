@@ -192,7 +192,10 @@ export function toFeedRow(notification: FeedNotification): FeedRow {
       return {
         ...base,
         title: `Your Refund Request for ${data.courseTitle} was approved`,
-        snippet: data.note ?? `${formatPrice(data.amount)} is on its way back to you.`,
+        snippet: sentences(
+          `${formatPrice(data.amount)} from Purchase #${data.purchaseId} is on its way back to you.`,
+          data.note
+        ),
         link: data.refundView,
       };
     }
@@ -201,7 +204,11 @@ export function toFeedRow(notification: FeedNotification): FeedRow {
       return {
         ...base,
         title: `Your Refund Request for ${data.courseTitle} was declined`,
-        snippet: `${data.note ?? ""} You can ask again.`.trim(),
+        snippet: sentences(
+          `Purchase #${data.purchaseId} (${formatPrice(data.amount)}) was not refunded.`,
+          data.note,
+          "You can ask again."
+        ),
         link: data.refundView,
       };
     }
@@ -224,6 +231,11 @@ export function toFeedRow(notification: FeedNotification): FeedRow {
       };
     }
   }
+}
+
+/** Joins the sentences that are there, skipping a missing note. */
+function sentences(...parts: (string | null)[]): string {
+  return parts.filter((part) => part).join(" ");
 }
 
 function seatsLeftText(seatsLeft: number): string {
