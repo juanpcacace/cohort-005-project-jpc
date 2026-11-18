@@ -2,7 +2,9 @@ import { Form, Link, useActionData, useNavigation, useSearchParams } from "react
 import { redirect, data } from "react-router";
 import { z } from "zod";
 import type { Route } from "./+types/signup";
-import { UserRole, users } from "~/db/schema";
+import { users } from "~/db/schema";
+import { defaultNotificationsProvider } from "~/lib/notifications.server";
+import { signUpStudent } from "~/lib/users.server";
 import { setCurrentUserId, getCurrentUserId } from "~/lib/session";
 import { parseFormData } from "~/lib/validation";
 import { Button } from "~/components/ui/button";
@@ -74,11 +76,12 @@ export async function action({ request, url }: Route.ActionArgs) {
   }
 
   // Create new user as student
-  const newUser = db
-    .insert(users)
-    .values({ name, email, role: UserRole.Student, avatarUrl: null })
-    .returning()
-    .get();
+  const newUser = await signUpStudent(
+    db,
+    defaultNotificationsProvider(),
+    name,
+    email
+  );
   const cookie = await setCurrentUserId(request, newUser.id);
   throw redirect(destination, {
     headers: { "Set-Cookie": cookie },
