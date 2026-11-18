@@ -59,4 +59,8 @@ export default [
   route("api/notifications/read", "routes/api.notifications.read.ts"),
   route("api/notifications/seen-all", "routes/api.notifications.seen-all.ts"),
   route("api/notifications/read-all", "routes/api.notifications.read-all.ts"),
+  route(
+    "api/notifications/preferences",
+    "routes/api.notifications.preferences.ts"
+  ),
 ] satisfies RouteConfig;
