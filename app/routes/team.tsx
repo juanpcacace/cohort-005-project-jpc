@@ -25,6 +25,7 @@ import {
   type SeatAvailability,
 } from "~/lib/refunds.server";
 import { formatPrice } from "~/lib/utils";
+import { CelebrationConfetti } from "~/components/confetti";
 
 function getTeamForAdmin(userId: number) {
   const membership = db
@@ -204,6 +205,7 @@ export default function Team({ loaderData }: Route.ComponentProps) {
 
   return (
     <div className="mx-auto max-w-7xl p-6 lg:p-8">
+      <CelebrationConfetti />
       <nav className="mb-6 text-sm text-muted-foreground">
         <Link to="/" className="hover:text-foreground">
           Home

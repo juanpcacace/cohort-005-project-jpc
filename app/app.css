@@ -144,3 +144,23 @@
   width: 50%;
   animation: loading-bar-shimmer 1.2s ease-in-out infinite;
 }
+
+/* Purchase celebration confetti (app/components/confetti.tsx) */
+@keyframes confetti-fall {
+  0% {
+    transform: translate3d(0, -10vh, 0) rotate(0deg);
+    opacity: 1;
+  }
+  100% {
+    transform: translate3d(var(--confetti-drift), 110vh, 0)
+      rotate(var(--confetti-spin));
+    opacity: 0.8;
+  }
+}
+
+.confetti-piece {
+  position: absolute;
+  top: 0;
+  animation: confetti-fall var(--confetti-duration) ease-in
+    var(--confetti-delay) forwards;
+}
