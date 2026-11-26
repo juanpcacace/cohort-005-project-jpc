@@ -37,7 +37,7 @@ export type LandingPage = {
   stats: LandingStats;
 };
 
-const published = eq(courses.status, CourseStatus.Published);
+const publishedOnly = eq(courses.status, CourseStatus.Published);
 
 function readFeaturedCourses(db: Db): FeaturedCourse[] {
   return db
@@ -56,7 +56,7 @@ function readFeaturedCourses(db: Db): FeaturedCourse[] {
     .innerJoin(categories, eq(courses.categoryId, categories.id))
     .leftJoin(modules, eq(modules.courseId, courses.id))
     .leftJoin(lessons, eq(lessons.moduleId, modules.id))
-    .where(published)
+    .where(publishedOnly)
     .groupBy(courses.id)
     .orderBy(desc(courses.createdAt), desc(courses.id))
     .limit(FEATURED_COURSE_LIMIT)
@@ -77,7 +77,7 @@ function readStats(db: Db): LandingStats {
     .from(courses)
     .leftJoin(modules, eq(modules.courseId, courses.id))
     .leftJoin(lessons, eq(lessons.moduleId, modules.id))
-    .where(published)
+    .where(publishedOnly)
     .all();
   return stats;
 }
