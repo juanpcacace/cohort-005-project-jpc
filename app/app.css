@@ -164,9 +164,3 @@
   animation: confetti-fall var(--confetti-duration) ease-in
     var(--confetti-delay) forwards;
 }
-
-@media (prefers-reduced-motion: reduce) {
-  .confetti-piece {
-    display: none;
-  }
-}
