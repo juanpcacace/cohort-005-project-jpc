@@ -25,7 +25,7 @@ export function LandingStatsStrip({ stats }: { stats: LandingStats }) {
     { value: stats.courses, label: "Published courses" },
     { value: stats.lessons, label: "Lessons" },
     { value: stats.instructors, label: "Instructors" },
-    { value: stats.categories, label: "Topics" },
+    { value: stats.categories, label: "Categories" },
   ];
 
   return (
