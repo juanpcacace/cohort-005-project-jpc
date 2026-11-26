@@ -30,10 +30,12 @@ export function LandingHero({
       />
       <div className="relative mx-auto grid max-w-6xl grid-cols-1 items-center gap-12 px-6 py-16 sm:py-24 lg:grid-cols-[1.1fr_1fr]">
         <div>
-          <p className="inline-flex items-center gap-2 rounded-full border border-border bg-muted/50 px-3 py-1 text-xs font-medium text-muted-foreground">
-            <span className="size-1.5 rounded-full bg-primary" />
-            {stats.courses} courses · {stats.lessons} lessons
-          </p>
+          {stats.courses > 0 && (
+            <p className="inline-flex items-center gap-2 rounded-full border border-border bg-muted/50 px-3 py-1 text-xs font-medium text-muted-foreground">
+              <span className="size-1.5 rounded-full bg-primary" />
+              {stats.courses} courses · {stats.lessons} lessons
+            </p>
+          )}
           <h1 className="mt-6 text-4xl font-bold tracking-tight sm:text-6xl">
             Learn to code,
             <br />
