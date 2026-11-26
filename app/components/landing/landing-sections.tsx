@@ -33,7 +33,7 @@ const FEATURES = [
   {
     icon: ClipboardCheck,
     title: "Check yourself as you go",
-    body: "Quizzes at the end of a lesson tell you what stuck and what to revisit before moving on.",
+    body: "Lessons can end in a quiz that tells you what stuck and what to revisit before moving on.",
   },
   {
     icon: LineChart,
