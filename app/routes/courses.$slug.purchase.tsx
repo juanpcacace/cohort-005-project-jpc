@@ -337,7 +337,7 @@ export async function action({ params, request }: Route.ActionArgs) {
   const { quantity } = parsed.data;
   const totalPrice = pppPrice * quantity;
   createTeamPurchase(currentUserId, course.id, totalPrice, country, quantity);
-  throw redirect(`/team`);
+  throw redirect(celebrationPath("/team"));
 }
 
 export default function PurchaseConfirmation({
