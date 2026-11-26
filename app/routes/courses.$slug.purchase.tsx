@@ -1,3 +1,4 @@
+import { celebrationPath } from "~/modules/celebration";
 import { Link, useFetcher, redirect, useSearchParams } from "react-router";
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
@@ -329,7 +330,7 @@ export async function action({ params, request }: Route.ActionArgs) {
     if (!enrolled.ok) {
       throw data(enrolled.error, { status: 409 });
     }
-    throw redirect(`/courses/${slug}/welcome`);
+    throw redirect(celebrationPath(`/courses/${slug}/welcome`));
   }
 
   // Team purchase — user does NOT get enrolled themselves

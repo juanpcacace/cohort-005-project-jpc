@@ -1,3 +1,4 @@
+import { celebrationPath } from "~/modules/celebration";
 import { Link, useFetcher, redirect } from "react-router";
 import { useEffect } from "react";
 import { toast } from "sonner";
@@ -125,7 +126,7 @@ export async function action({ params, request }: Route.ActionArgs) {
     throw redirect("/courses");
   }
 
-  throw redirect(`/courses/${course.slug}/welcome`);
+  throw redirect(celebrationPath(`/courses/${course.slug}/welcome`));
 }
 
 export default function Redeem({
