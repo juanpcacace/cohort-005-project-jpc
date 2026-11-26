@@ -1,11 +1,16 @@
 import { describe, it, expect } from "vitest";
 import {
-  CELEBRATE_PARAM,
   CONFETTI_PIECE_COUNT,
   celebrationPath,
   confettiPieces,
+  fallLengthMs,
+  hasCelebrationSignal,
   shouldCelebrate,
+  withoutCelebrationSignal,
 } from "../index";
+
+const signalled = () =>
+  new URL(celebrationPath("/x"), "http://localhost").searchParams;
 
 describe("celebrationPath", () => {
   it("adds the one-time celebrate signal to a path", () => {
@@ -15,18 +20,31 @@ describe("celebrationPath", () => {
   });
 
   it("produces a URL that shouldCelebrate recognises", () => {
-    const url = new URL(celebrationPath("/x"), "http://localhost");
-    expect(shouldCelebrate(url.searchParams, false)).toBe(true);
+    expect(shouldCelebrate(signalled(), false)).toBe(true);
+  });
+});
+
+describe("hasCelebrationSignal", () => {
+  it("sees the signal whatever its value", () => {
+    expect(hasCelebrationSignal(signalled())).toBe(true);
+    expect(hasCelebrationSignal(new URLSearchParams("celebrate=0"))).toBe(true);
+  });
+
+  it("sees nothing on a plain visit", () => {
+    expect(hasCelebrationSignal(new URLSearchParams("tab=1"))).toBe(false);
+  });
+});
+
+describe("withoutCelebrationSignal", () => {
+  it("drops the signal and keeps every other parameter", () => {
+    const params = new URLSearchParams("tab=notes&celebrate=1");
+    const stripped = withoutCelebrationSignal(params);
+    expect(hasCelebrationSignal(stripped)).toBe(false);
+    expect(stripped.toString()).toBe("tab=notes");
   });
 });
 
 describe("shouldCelebrate", () => {
-  it("celebrates when the signal is present", () => {
-    expect(
-      shouldCelebrate(new URLSearchParams(`${CELEBRATE_PARAM}=1`), false)
-    ).toBe(true);
-  });
-
   it("stays calm on a plain visit", () => {
     expect(shouldCelebrate(new URLSearchParams(), false)).toBe(false);
   });
@@ -38,27 +56,17 @@ describe("shouldCelebrate", () => {
   });
 
   it("respects prefers-reduced-motion", () => {
-    expect(shouldCelebrate(new URLSearchParams("celebrate=1"), true)).toBe(
-      false
-    );
+    expect(shouldCelebrate(signalled(), true)).toBe(false);
   });
 });
 
 describe("confettiPieces", () => {
-  const fixed = (value: number) => () => value;
-
-  it("makes the default number of pieces", () => {
+  it("makes the full burst of pieces", () => {
     expect(confettiPieces(fixed(0.5))).toHaveLength(CONFETTI_PIECE_COUNT);
   });
 
-  it("makes as many pieces as asked, never fewer than none", () => {
-    expect(confettiPieces(fixed(0.5), 3)).toHaveLength(3);
-    expect(confettiPieces(fixed(0.5), 2.9)).toHaveLength(2);
-    expect(confettiPieces(fixed(0.5), -4)).toHaveLength(0);
-  });
-
   it("maps the lowest random value to the low end of every range", () => {
-    expect(confettiPieces(fixed(0), 1)[0]).toEqual({
+    expect(confettiPieces(fixed(0))[0]).toEqual({
       id: 0,
       leftPercent: 0,
       delayMs: 0,
@@ -71,7 +79,7 @@ describe("confettiPieces", () => {
   });
 
   it("maps the highest random value to the high end of every range", () => {
-    expect(confettiPieces(fixed(1), 1)[0]).toEqual({
+    expect(confettiPieces(fixed(1))[0]).toEqual({
       id: 0,
       leftPercent: 100,
       delayMs: 600,
@@ -84,11 +92,15 @@ describe("confettiPieces", () => {
   });
 
   it("gives every piece its own id", () => {
-    expect(confettiPieces(fixed(0.5), 3).map((p) => p.id)).toEqual([0, 1, 2]);
+    const ids = confettiPieces(fixed(0.5)).map((p) => p.id);
+    expect(ids.slice(0, 3)).toEqual([0, 1, 2]);
+    expect(new Set(ids).size).toBe(CONFETTI_PIECE_COUNT);
   });
 
   it("cycles through the palette", () => {
-    const colors = confettiPieces(fixed(0.5), 7).map((p) => p.color);
+    const colors = confettiPieces(fixed(0.5))
+      .slice(0, 7)
+      .map((p) => p.color);
     expect(colors).toEqual([
       "#f43f5e",
       "#f59e0b",
@@ -101,7 +113,7 @@ describe("confettiPieces", () => {
   });
 
   it("rounds timings and sizes to whole numbers", () => {
-    const [piece] = confettiPieces(fixed(0.3333), 1);
+    const [piece] = confettiPieces(fixed(0.3333));
     expect(piece.delayMs).toBe(200);
     expect(piece.durationMs).toBe(2667);
     expect(piece.driftPx).toBe(-40);
@@ -110,3 +122,23 @@ describe("confettiPieces", () => {
     expect(piece.leftPercent).toBeCloseTo(33.33);
   });
 });
+
+describe("fallLengthMs", () => {
+  it("lasts until the latest piece has landed", () => {
+    const [early, late] = confettiPieces(fixed(0)).slice(0, 2);
+    expect(
+      fallLengthMs([
+        { ...early, delayMs: 100, durationMs: 2000 },
+        { ...late, delayMs: 500, durationMs: 3000 },
+      ])
+    ).toBe(3500);
+  });
+
+  it("is over at once when there is nothing to fall", () => {
+    expect(fallLengthMs([])).toBe(0);
+  });
+});
+
+function fixed(value: number) {
+  return () => value;
+}

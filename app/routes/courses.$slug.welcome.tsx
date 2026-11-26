@@ -8,7 +8,7 @@ import { Button } from "~/components/ui/button";
 import { Card, CardContent } from "~/components/ui/card";
 import { PartyPopper, MessageCircle, PlayCircle } from "lucide-react";
 import { data } from "react-router";
-import { PurchaseConfetti } from "~/components/confetti";
+import { CelebrationConfetti } from "~/components/confetti";
 
 function getCourseWithDetails(id: number) {
   const course = db
@@ -115,7 +115,7 @@ export default function Welcome({ loaderData }: Route.ComponentProps) {
 
   return (
     <div className="mx-auto max-w-2xl p-6 lg:p-8">
-      <PurchaseConfetti />
+      <CelebrationConfetti />
       <Card>
         <CardContent className="p-8 text-center">
           <div className="mb-4 inline-flex size-16 items-center justify-center rounded-full bg-primary/10">

@@ -1,42 +1,34 @@
 import { useEffect, useState, type CSSProperties } from "react";
 import { useSearchParams } from "react-router";
 import {
-  CELEBRATE_PARAM,
   confettiPieces,
+  fallLengthMs,
+  hasCelebrationSignal,
   shouldCelebrate,
+  withoutCelebrationSignal,
   type ConfettiPiece,
 } from "~/modules/celebration";
 
-const LONGEST_FALL_MS = 4500;
+const PIECE_HEIGHT_TO_WIDTH = 0.4;
 
-/**
- * Rains confetti once when the page was reached through a purchase or seat
- * redemption redirect, then drops the signal from the URL.
- */
-export function PurchaseConfetti() {
+export function CelebrationConfetti() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [pieces, setPieces] = useState<ConfettiPiece[]>([]);
 
   useEffect(() => {
-    if (searchParams.get(CELEBRATE_PARAM) === null) return;
+    if (!hasCelebrationSignal(searchParams)) return;
     const reducedMotion = window.matchMedia(
       "(prefers-reduced-motion: reduce)"
     ).matches;
     if (shouldCelebrate(searchParams, reducedMotion)) {
       setPieces(confettiPieces());
     }
-    setSearchParams(
-      (prev) => {
-        prev.delete(CELEBRATE_PARAM);
-        return prev;
-      },
-      { replace: true }
-    );
+    setSearchParams(withoutCelebrationSignal, { replace: true });
   }, [searchParams, setSearchParams]);
 
   useEffect(() => {
     if (pieces.length === 0) return;
-    const timer = window.setTimeout(() => setPieces([]), LONGEST_FALL_MS);
+    const timer = window.setTimeout(() => setPieces([]), fallLengthMs(pieces));
     return () => window.clearTimeout(timer);
   }, [pieces]);
 
@@ -59,7 +51,7 @@ function FallingPiece({ piece }: { piece: ConfettiPiece }) {
   const style = {
     left: `${piece.leftPercent}%`,
     width: `${piece.sizePx}px`,
-    height: `${piece.sizePx * 0.4}px`,
+    height: `${piece.sizePx * PIECE_HEIGHT_TO_WIDTH}px`,
     backgroundColor: piece.color,
     "--confetti-delay": `${piece.delayMs}ms`,
     "--confetti-duration": `${piece.durationMs}ms`,
