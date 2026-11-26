@@ -6,7 +6,6 @@ import { DevUI } from "~/components/dev-ui";
 import { LandingHeader } from "~/components/landing/landing-header";
 import { LandingHero } from "~/components/landing/landing-hero";
 import {
-  LandingFeaturedCourses,
   LandingFeatures,
   LandingFooter,
   LandingStatsStrip,
@@ -62,7 +61,6 @@ export default function Home({ loaderData }: Route.ComponentProps) {
       />
       <LandingStatsStrip stats={stats} />
       <LandingFeatures />
-      <LandingFeaturedCourses courses={featuredCourses} />
       <LandingFooter signedIn={signedIn} />
       <DevUI
         users={loaderData.users}

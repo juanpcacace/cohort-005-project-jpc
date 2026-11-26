@@ -120,7 +120,6 @@ describe("getLandingPage featured courses", () => {
     expect(getLandingPage().featuredCourses[0]).toMatchObject({
       title: "Test Course",
       lessonCount: 0,
-      instructorName: "Test Instructor",
       categoryName: "Programming",
     });
   });

@@ -7,7 +7,6 @@ import {
   courses,
   lessons,
   modules,
-  users,
 } from "~/db/schema";
 
 type Db = BetterSQLite3Database<typeof schema>;
@@ -18,9 +17,7 @@ export type FeaturedCourse = {
   id: number;
   title: string;
   slug: string;
-  description: string;
   coverImageUrl: string | null;
-  instructorName: string;
   categoryName: string;
   lessonCount: number;
 };
@@ -45,14 +42,11 @@ function readFeaturedCourses(db: Db): FeaturedCourse[] {
       id: courses.id,
       title: courses.title,
       slug: courses.slug,
-      description: courses.description,
       coverImageUrl: courses.coverImageUrl,
-      instructorName: users.name,
       categoryName: categories.name,
       lessonCount: sql<number>`count(${lessons.id})`,
     })
     .from(courses)
-    .innerJoin(users, eq(courses.instructorId, users.id))
     .innerJoin(categories, eq(courses.categoryId, categories.id))
     .leftJoin(modules, eq(modules.courseId, courses.id))
     .leftJoin(lessons, eq(lessons.moduleId, modules.id))
